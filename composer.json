@@ -1,5 +1,6 @@
 {
     "name": "tivins/llm-basic",
+    "version": "0.2.0",
     "type": "library",
     "license": "MIT",
     "autoload": {
