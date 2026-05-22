@@ -1,0 +1,19 @@
+{
+    "name": "tivins/llm-basic",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Tivins\\LlmBasic\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Tivins"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+      "ext-curl": "*"
+    }
+}
