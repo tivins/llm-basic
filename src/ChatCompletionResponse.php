@@ -12,6 +12,7 @@ class ChatCompletionResponse
         public Usage $usage,
         public array $choices,
         private ?array $raw = null,
+        public ?float $duration = null,
     ) {}
 
     public function raw(): ?array
@@ -37,5 +38,36 @@ class ChatCompletionResponse
         }
 
         return null;
+    }
+
+    public function toStoredMessage(
+        ChatCompletionOptions $options,
+        float $elapsedMs,
+        ?\DateTimeImmutable $at = null,
+    ): ?Message {
+        $assistant = $this->assistantMessage();
+        if ($assistant === null) {
+            return null;
+        }
+
+        $at ??= new \DateTimeImmutable();
+        $meta = [
+            'created_at' => $at->format(\DateTimeInterface::ATOM),
+            'time_ms' => $elapsedMs,
+            'model' => $this->model,
+            'temperature' => $options->temperature,
+            'usage' => $this->usage->toArray(),
+        ];
+        $finishReason = $this->finishReason();
+        if ($finishReason !== null) {
+            $meta['finish_reason'] = $finishReason;
+        }
+
+        return new Message(
+            $assistant->role,
+            $assistant->content,
+            $assistant->reasoningContent,
+            $meta,
+        );
     }
 }

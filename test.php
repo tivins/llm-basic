@@ -10,28 +10,28 @@ use Tivins\LlmBasic\Role;
 
 $llm = new LLM('http://127.0.0.1:8080');
 $conversation = new Conversation([
-    new Message(Role::System, 'You are a helpful assistant.'),
-    new Message(Role::User, 'What is the capital of France?'),
+    Message::withCreatedAt(Role::System, 'You are a helpful assistant.'),
+    Message::withCreatedAt(Role::User, 'What is the capital of France?'),
 ]);
 $options = new ChatCompletionOptions(n: 1);
+
 $response = $llm->chatCompletion($conversation, $options);
 
 if ($response->finishReason() === 'stop') {
-    $assistant = $response->assistantMessage();
-    $conversation->addMessage(new Message(
-        Role::Assistant,
-        $assistant->content,
-        $assistant->reasoningContent,
-    ));
-    $conversation->addMessage(new Message(Role::User, 'About which country is this capital?'));
+    $stored = $response->toStoredMessage($options, $response->duration);
+    if ($stored !== null) {
+        $conversation->addMessage($stored);
+    }
+    $conversation->addMessage(Message::withCreatedAt(Role::User, 'About which country is this capital?'));
+
     $response = $llm->chatCompletion($conversation, $options);
+
     if ($response->finishReason() === 'stop') {
-        $assistant = $response->assistantMessage();
-        $conversation->addMessage(new Message(
-            Role::Assistant,
-            $assistant->content,
-            $assistant->reasoningContent,
-        ));
+        $stored = $response->toStoredMessage($options, $response->duration);
+        if ($stored !== null) {
+            $conversation->addMessage($stored);
+        }
         $response = $llm->chatCompletion($conversation, $options);
     }
 }
+echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);

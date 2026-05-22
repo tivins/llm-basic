@@ -12,6 +12,7 @@ class LLM
 
     public function chatCompletion(Conversation $conversation, ChatCompletionOptions $options): ChatCompletionResponse
     {
+        $start = hrtime(true);
         $url = $this->endpoint . '/v1/chat/completions';
         $headers = ['Content-Type: application/json'];
         if ($this->apiKey !== null) {
@@ -50,12 +51,14 @@ class LLM
                 $choice['finish_reason'],
             );
         }
+        $elapsedMs = (hrtime(true) - $start) / 1e6;
 
         return new ChatCompletionResponse(
             $data['model'],
             $usage,
             $choices,
             $data,
+            $elapsedMs,
         );
     }
 }

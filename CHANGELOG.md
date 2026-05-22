@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-05-23
+
+### Added
+
+- `Message::$meta` for per-message metadata (usage, timing, model, etc.).
+- `Message::withCreatedAt()` helper and `Message::toArray()` / `JsonSerializable`.
+- `Conversation` implements `JsonSerializable` for stable export JSON.
+- `Usage::toArray()` and `ChatCompletionResponse::toStoredMessage()` to archive assistant turns with completion metadata.
+
 ## 0.2.0 — 2026-05-23
 
 ### Changed

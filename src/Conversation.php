@@ -2,7 +2,7 @@
 
 namespace Tivins\LlmBasic;
 
-class Conversation
+class Conversation implements \JsonSerializable
 {
     public function __construct(
         public array $messages,
@@ -26,5 +26,15 @@ class Conversation
 
             return $payload;
         }, $this->messages);
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'messages' => array_map(
+                fn (Message $message) => $message->toArray(),
+                $this->messages,
+            ),
+        ];
     }
 }
