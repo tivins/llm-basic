@@ -41,12 +41,21 @@ class LLM
 
         $choices = [];
         foreach ($data['choices'] as $choice) {
+            $toolCalls = null;
+            if (isset($choice['message']['tool_calls'])) {
+                $toolCalls = array_map(
+                    ToolCall::fromArray(...),
+                    $choice['message']['tool_calls'],
+                );
+            }
             $choices[] = new Choice(
                 $choice['index'],
                 new Message(
                     Role::tryFrom($choice['message']['role']) ?? Role::Unknown,
                     $choice['message']['content'] ?? '',
                     $choice['message']['reasoning_content'] ?? null,
+                    toolCalls: $toolCalls,
+                    toolCallId: $choice['message']['tool_call_id'] ?? null,
                 ),
                 $choice['finish_reason'],
             );

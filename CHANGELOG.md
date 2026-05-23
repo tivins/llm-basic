@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — 2026-05-23
+
+### Added
+
+- `Tool`, `ToolCall`, and `ToolRegistry` for OpenAI-style function tools.
+- `Tool::getWeather()` as a placeholder tool definition.
+- `ToolRegistry::execute()` / `executeAll()` with a fake `get_weather` implementation.
+- `Role::Tool`, `Message::$toolCalls`, `Message::$toolCallId`, and `Message::toChatCompletionArray()`.
+- `ChatCompletionResponse::hasToolCalls()` to detect `tool_calls` finish flows.
+- `ChatCompletionOptions::$tools` now accepts a `ToolRegistry` instead of a raw array.
+
 ## 0.3.0 — 2026-05-23
 
 ### Added

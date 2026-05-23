@@ -9,7 +9,7 @@ class ChatCompletionOptions
         public float $temperature = 0.7,
         public float $topP = 1.0,
         public int $n = 1,
-        public ?array $tools = null,
+        public ?ToolRegistry $tools = null,
         public ?string $toolChoice = null,
         public ?string $responseFormat = null,
     ) {}
@@ -27,8 +27,8 @@ class ChatCompletionOptions
             $body['model'] = $model;
         }
 
-        if ($this->tools !== null && $this->tools !== []) {
-            $body['tools'] = $this->tools;
+        if ($this->tools !== null && $this->tools->all() !== []) {
+            $body['tools'] = $this->tools->toRequestArray();
             if ($this->toolChoice !== null) {
                 $body['tool_choice'] = $this->toolChoice;
             }

@@ -40,6 +40,13 @@ class ChatCompletionResponse
         return null;
     }
 
+    public function hasToolCalls(): bool
+    {
+        $calls = $this->assistantMessage()?->toolCalls;
+
+        return $calls !== null && $calls !== [];
+    }
+
     public function toStoredMessage(
         ChatCompletionOptions $options,
         float $elapsedMs,
@@ -68,6 +75,7 @@ class ChatCompletionResponse
             $assistant->content,
             $assistant->reasoningContent,
             $meta,
+            $assistant->toolCalls,
         );
     }
 }
