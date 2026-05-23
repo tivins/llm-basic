@@ -7,39 +7,79 @@ use Tivins\LlmBasic\Conversation;
 use Tivins\LlmBasic\LLM;
 use Tivins\LlmBasic\Message;
 use Tivins\LlmBasic\Role;
+use Tivins\LlmBasic\ToolSchema;
 use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolRegistry;
 
 $getCityPopulation = new Tool(
-    'get_city_population',
-    'Get the population of a city.',
-    [
-        'type' => 'object',
-        'properties' => [
-            'city' => [
-                'type' => 'string',
-                'description' => 'City name, e.g. Paris',
+    new ToolSchema(
+        'get_city_population',
+        'Get the population of a city.',
+        [
+            'type' => 'object',
+            'properties' => [
+                'city' => [
+                    'type' => 'string',
+                    'description' => 'City name, e.g. Paris',
+                ],
             ],
+            'required' => ['city'],
         ],
-        'required' => ['city'],
-    ],
+    ),
+    function (string $argumentsJson): string {
+        $args = json_decode($argumentsJson, true) ?? [];
+        $city = $args['city'] ?? 'unknown';
+
+        return json_encode([
+            'city' => $city,
+            'population' => match (strtolower($city)) {
+                'paris' => 2_161_000,
+                'lyon' => 516_000,
+                default => 100_000,
+            },
+            'source' => 'fake',
+        ], JSON_UNESCAPED_UNICODE);
+    }
 );
 
-$tools = new ToolRegistry(Tool::getWeather());
-$tools->register($getCityPopulation, function (string $argumentsJson): string {
-    $args = json_decode($argumentsJson, true) ?? [];
-    $city = $args['city'] ?? 'unknown';
+$getCityWeather = new Tool(
+    new ToolSchema(
+        'get_city_weather',
+        'Get the weather of a city.',
+        [
+            'type' => 'object',
+            'properties' => [
+                'city' => [
+                    'type' => 'string',
+                    'description' => 'City name, e.g. Paris',
+                ],
+            ],
+            'required' => ['city'],
+        ],
+    ),
+    function (string $argumentsJson): string {
+        $args = json_decode($argumentsJson, true) ?? [];
+        $city = $args['city'] ?? 'unknown';
 
-    return json_encode([
-        'city' => $city,
-        'population' => match (strtolower($city)) {
-            'paris' => 2_161_000,
-            'lyon' => 516_000,
-            default => 100_000,
-        },
-        'source' => 'fake',
-    ], JSON_UNESCAPED_UNICODE);
-});
+        return json_encode([
+            'city' => $city,
+            'temperature' => match (strtolower($city)) {
+                'paris' => 22,
+                'lyon' => 18,
+                default => 15,
+            },
+            'unit' => 'celsius',
+            'condition' => match (strtolower($city)) {
+                'paris' => 'sunny',
+                'lyon' => 'cloudy',
+                default => 'rainy',
+            },
+            'source' => 'fake',
+        ], JSON_UNESCAPED_UNICODE);
+    }
+);
+
+$tools = new ToolRegistry($getCityPopulation, $getCityWeather);
 
 $llm = new LLM('http://127.0.0.1:8080');
 $conversation = new Conversation([

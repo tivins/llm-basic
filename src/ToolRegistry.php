@@ -4,7 +4,7 @@ namespace Tivins\LlmBasic;
 
 class ToolRegistry
 {
-    /** @var array<string, Tool> */
+    /** @var array<string, ToolSchema> */
     private array $tools = [];
 
     /** @var array<string, callable(string): string> */
@@ -12,25 +12,18 @@ class ToolRegistry
 
     public function __construct(Tool ...$tools)
     {
-        foreach ($tools as $tool) {
-            $this->register($tool);
-        }
+        $this->registerTools(...$tools);
     }
 
-    /**
-     * @param callable(string): string|null $handler Receives JSON arguments, returns JSON content.
-     */
-    public function register(Tool $tool, ?callable $handler = null): void
+    public function registerTools(Tool ...$tools): void
     {
-        $this->tools[$tool->name] = $tool;
-        if ($handler !== null) {
-            $this->handlers[$tool->name] = $handler;
-        } elseif ($tool->name === 'get_weather' && !isset($this->handlers[$tool->name])) {
-            $this->handlers[$tool->name] = fn (string $argumentsJson) => $this->fakeGetWeather($argumentsJson);
+        foreach ($tools as $tool) {
+            $this->tools[$tool->schema->name] = $tool->schema;
+            $this->handlers[$tool->schema->name] = $tool->handler;
         }
     }
 
-    /** @return Tool[] */
+    /** @return ToolSchema[] */
     public function all(): array
     {
         return array_values($this->tools);
@@ -38,7 +31,7 @@ class ToolRegistry
 
     public function toRequestArray(): array
     {
-        return array_map(fn (Tool $tool) => $tool->toArray(), $this->all());
+        return array_map(fn(ToolSchema $tool) => $tool->toArray(), $this->all());
     }
 
     public function has(string $name): bool
@@ -62,19 +55,6 @@ class ToolRegistry
      */
     public function executeAll(array $calls): array
     {
-        return array_map(fn (ToolCall $call) => $this->execute($call), $calls);
-    }
-
-    private function fakeGetWeather(string $argumentsJson): string
-    {
-        $args = json_decode($argumentsJson, true) ?? [];
-        $location = $args['location'] ?? 'unknown';
-
-        return json_encode([
-            'location' => $location,
-            'temperature' => 22,
-            'unit' => 'celsius',
-            'condition' => 'sunny',
-        ], JSON_UNESCAPED_UNICODE);
+        return array_map(fn(ToolCall $call) => $this->execute($call), $calls);
     }
 }
