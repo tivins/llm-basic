@@ -7,6 +7,9 @@ class ToolRegistry
     /** @var array<string, Tool> */
     private array $tools = [];
 
+    /** @var array<string, callable(string): string> */
+    private array $handlers = [];
+
     public function __construct(Tool ...$tools)
     {
         foreach ($tools as $tool) {
@@ -14,9 +17,17 @@ class ToolRegistry
         }
     }
 
-    public function register(Tool $tool): void
+    /**
+     * @param callable(string): string|null $handler Receives JSON arguments, returns JSON content.
+     */
+    public function register(Tool $tool, ?callable $handler = null): void
     {
         $this->tools[$tool->name] = $tool;
+        if ($handler !== null) {
+            $this->handlers[$tool->name] = $handler;
+        } elseif ($tool->name === 'get_weather' && !isset($this->handlers[$tool->name])) {
+            $this->handlers[$tool->name] = fn (string $argumentsJson) => $this->fakeGetWeather($argumentsJson);
+        }
     }
 
     /** @return Tool[] */
@@ -37,10 +48,10 @@ class ToolRegistry
 
     public function execute(ToolCall $call): Message
     {
-        $content = match ($call->name) {
-            'get_weather' => $this->fakeGetWeather($call->arguments),
-            default => json_encode(['error' => "Unknown tool: {$call->name}"]),
-        };
+        $handler = $this->handlers[$call->name] ?? null;
+        $content = $handler !== null
+            ? $handler($call->arguments)
+            : json_encode(['error' => "No handler for tool: {$call->name}"]);
 
         return new Message(Role::Tool, $content, toolCallId: $call->id);
     }

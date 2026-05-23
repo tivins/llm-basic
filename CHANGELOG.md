@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — 2026-05-23
+
+### Changed
+
+- `ToolRegistry::register()` accepts an optional handler `callable(string): string` for custom tool execution.
+
 ## 0.4.0 — 2026-05-23
 
 ### Added
