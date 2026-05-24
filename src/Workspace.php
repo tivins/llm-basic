@@ -11,6 +11,7 @@ final class Workspace
     private const int MAX_READ_BYTES = 1_048_576;
     private const int MAX_WRITE_BYTES = 524_288;
     private const int DEFAULT_MAX_LIST_ENTRIES = 500;
+    private const int DEFAULT_READ_RANGE_LIMIT = 200;
 
     private readonly string $root;
 
@@ -65,6 +66,87 @@ final class Workspace
         }
 
         return $content;
+    }
+
+    /**
+     * @return array{
+     *     file: string,
+     *     content: string,
+     *     start_line: int,
+     *     end_line: int,
+     *     total_lines: int,
+     *     truncated: bool,
+     * }
+     */
+    public function readRange(
+        string $relative,
+        int $offset = 1,
+        int $limit = self::DEFAULT_READ_RANGE_LIMIT,
+    ): array {
+        if ($offset < 1) {
+            throw new WorkspaceException('offset must be at least 1.');
+        }
+
+        if ($limit < 1) {
+            throw new WorkspaceException('limit must be at least 1.');
+        }
+
+        $content = $this->read($relative);
+        if ($content === '') {
+            return [
+                'file' => $this->displayPath($relative),
+                'content' => '',
+                'start_line' => $offset,
+                'end_line' => 0,
+                'total_lines' => 0,
+                'truncated' => false,
+            ];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $content);
+        if ($lines === false) {
+            $lines = [];
+        }
+
+        if ($content !== '' && preg_match('/\r\n|\r|\n\z/', $content) === 1) {
+            array_pop($lines);
+        }
+
+        $totalLines = count($lines);
+
+        if ($offset > $totalLines) {
+            return [
+                'file' => $this->displayPath($relative),
+                'content' => '',
+                'start_line' => $offset,
+                'end_line' => $totalLines,
+                'total_lines' => $totalLines,
+                'truncated' => false,
+            ];
+        }
+
+        $selected = array_slice($lines, $offset - 1, $limit);
+        $sliceContent = implode("\n", $selected);
+        $endLine = $offset + count($selected) - 1;
+        $truncated = $endLine < $totalLines;
+
+        if (strlen($sliceContent) > self::MAX_READ_BYTES) {
+            throw new WorkspaceException(
+                sprintf(
+                    'Requested range exceeds maximum read size of %d bytes; use a smaller limit.',
+                    self::MAX_READ_BYTES,
+                ),
+            );
+        }
+
+        return [
+            'file' => $this->displayPath($relative),
+            'content' => $sliceContent,
+            'start_line' => $offset,
+            'end_line' => $endLine,
+            'total_lines' => $totalLines,
+            'truncated' => $truncated,
+        ];
     }
 
     public function resolveForWrite(string $relative, bool $createParents = true): string

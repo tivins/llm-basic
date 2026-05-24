@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0 — 2026-05-25
+
+### Added
+
+- `Workspace::readRange()` — line-based partial file reads with `offset` (1-based), `limit` (default 200), and `MAX_READ_BYTES` enforcement on the returned slice.
+- `ReadFileRangeTool` — `read_file_range` tool returning `{file, content, start_line, end_line, total_lines, truncated}`.
+- Smoke tests for `read_file_range` (line slice, tail, empty file, invalid offset, traversal).
+
+### Changed
+
+- `test.php` registers `ReadFileRangeTool` alongside `ReadFileTool`.
+
 ## 0.11.2 — 2026-05-25
 
 ### Fixed

@@ -14,6 +14,7 @@ use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\ReadFileRangeTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
@@ -106,6 +107,7 @@ try {
         getCityPopulation(),
         getCityWeather(),
         new ReadFileTool($workspace),
+        new ReadFileRangeTool($workspace),
         new ListDirTool($workspace),
         new WriteFileTool($workspace),
         new ApplyPatchTool($workspace),

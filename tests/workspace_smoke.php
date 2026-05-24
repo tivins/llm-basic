@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\ReadFileRangeTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
@@ -109,6 +110,59 @@ $readFileTool = new ReadFileTool($workspace);
 $readJson = ($readFileTool->handler)(json_encode(['file' => '../../../etc/passwd']));
 $readDecoded = json_decode($readJson, true);
 assertTrue(isset($readDecoded['error']), 'ReadFileTool JSON error for traversal');
+
+// read_file_range
+$rangeFile = 'tests/_tmp/smoke-range.txt';
+$rangeLines = [];
+for ($i = 1; $i <= 10; $i++) {
+    $rangeLines[] = "line {$i}";
+}
+$workspace->write($rangeFile, implode("\n", $rangeLines) . "\n");
+
+$rangeResult = $workspace->readRange($rangeFile, offset: 3, limit: 4);
+assertTrue($rangeResult['start_line'] === 3, 'readRange start_line');
+assertTrue($rangeResult['end_line'] === 6, 'readRange end_line');
+assertTrue($rangeResult['total_lines'] === 10, 'readRange total_lines');
+assertTrue($rangeResult['content'] === "line 3\nline 4\nline 5\nline 6", 'readRange content');
+assertTrue($rangeResult['truncated'] === true, 'readRange truncated when more lines remain');
+
+$rangeTail = $workspace->readRange($rangeFile, offset: 9, limit: 10);
+assertTrue($rangeTail['truncated'] === false, 'readRange not truncated at end');
+assertTrue($rangeTail['content'] === "line 9\nline 10", 'readRange tail content');
+
+$emptyRangeFile = 'tests/_tmp/smoke-range-empty.txt';
+$workspace->write($emptyRangeFile, '');
+$emptyRange = $workspace->readRange($emptyRangeFile);
+assertTrue($emptyRange['total_lines'] === 0, 'readRange empty file total_lines');
+assertTrue($emptyRange['content'] === '', 'readRange empty file content');
+
+assertThrows(
+    fn () => $workspace->readRange($rangeFile, offset: 0),
+    'offset must be at least 1',
+    'readRange invalid offset',
+);
+
+$readFileRangeTool = new ReadFileRangeTool($workspace);
+$rangeToolJson = ($readFileRangeTool->handler)(json_encode([
+    'file' => $rangeFile,
+    'offset' => 2,
+    'limit' => 2,
+]));
+$rangeToolDecoded = json_decode($rangeToolJson, true);
+assertTrue(
+    is_array($rangeToolDecoded)
+    && ($rangeToolDecoded['content'] ?? '') === "line 2\nline 3"
+    && !isset($rangeToolDecoded['error']),
+    'ReadFileRangeTool success JSON',
+);
+
+$rangeTraversalJson = ($readFileRangeTool->handler)(json_encode([
+    'file' => '../../../etc/passwd',
+]));
+assertTrue(
+    isset(json_decode($rangeTraversalJson, true)['error']),
+    'ReadFileRangeTool JSON error for traversal',
+);
 
 // write_file: create under tests/_tmp/
 $tmpDir = $root . '/tests/_tmp';
@@ -257,7 +311,7 @@ assertTrue(
 );
 
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {
