@@ -4,22 +4,24 @@ L'année 1000 se situe au cœur du Moyen Âge, une période où la compréhensio
 
 ## 🌍 Le Modèle Géocentrique
 
-Le modèle dominant et largement accepté est le **géocentrisme**, un système qui place la Terre au centre immobile de l'Univers.
+Le modèle dominant et largement accepté est le **géocentrisme**.
 
-*   **La Terre au centre (Monde Sublunaire) :** La Terre est considérée comme le corps central, fixe et lourd. Elle fait partie du monde sublunaire, qui est soumis aux lois du changement, de la naissance, de la mort et de la corruption. Elle est ancrée dans les quatre éléments terrestres (terre, eau, air, feu).
-*   **Les Sphères Célestes (Monde Supralunaire) :** Autour de la Terre, les corps célestes (Lune, Mercure, Vénus, Soleil, Mars, Jupiter, Saturne et les étoiles fixes) sont disposés en couches concentriques, appelées "sphères cristallines".
-*   **Le Mouvement Parfait :** Ces sphères célestes sont considérées comme étant parfaitement homogènes et se déplaçant en cercles parfaits et réguliers. Ce mouvement circulaire est perçu comme la manifestation de la perfection divine et de l'immutabilité du ciel.
-*   **La Complexité du Mouvement (Ptolémée) :** Pour concilier cette théorie de la perfection circulaire avec les observations réelles (notamment les rétrogradations des planètes), les astronomes utilisent le système des **épicycles**. Les planètes ne se déplacent pas directement sur leur sphère principale (le déférent), mais sur un cercle plus petit (l'épicycle) qui lui-même tourne sur le déférent.
+*   **La Terre au centre :** La Terre est considérée comme le centre immobile de l'Univers. Elle est vue comme un corps lourd, soumis à la putréfaction et au changement, et elle est ancrée dans les quatre éléments terrestres (terre, eau, air, feu).
+*   **Les Sphères Célestes :** Autour de la Terre, les corps célestes (Lune, Mercure, Vénus, Soleil, Mars, Jupiter, Saturne et les étoiles fixes) sont disposés en couches concentriques, appelées "sphères cristallines".
+*   **Le Mouvement Parfait :** Ces sphères célestes sont considérées comme étant parfaites et se déplaçant en cercles parfaits et réguliers. Ce mouvement circulaire était perçu comme le mouvement idéal et immuable de la perfection divine.
 
 ## ✨ Les Corps Célestes et leur Mouvement
 
-Les planètes ne sont pas vues comme des corps autonomes mais comme des points sur des sphères en mouvement, leur mouvement étant expliqué par les modèles mathématiques complexes de Ptolémée. Le Soleil et la Lune sont les corps les plus visibles et leur mouvement est intégré dans le système des sphères.
+Les planètes ne sont pas vues comme des corps autonomes mais comme des points sur des sphères en mouvement.
+
+*   **Les Planètes :** Leur mouvement, bien que souvent décrit par des épicycles (petits cercles sur de plus grands cercles) pour expliquer les rétrogradations observées, est fondamentalement régi par la perfection circulaire.
+*   **Le Soleil et la Lune :** Ils sont les corps les plus visibles et leur mouvement est intégré dans le système des sphères.
 
 ## 🌿 La Physique Aristotélicienne
 
 La compréhension de la physique est directement héritée d'Aristote :
 
-*   **Les Éléments et les Domaines :** L'Univers est divisé en deux domaines distincts :
+*   **Les Éléments :** L'Univers est divisé en deux domaines distincts :
     *   **Le monde sublunaire (la Terre) :** Où existent les quatre éléments (terre, eau, air, feu). Ce monde est sujet au changement, à la naissance, à la mort et à la corruption.
     *   **Le monde supralunaire (le Ciel) :** Composé d'un cinquième élément parfait, l'**éther** (ou quintessence). Ce monde est immuable, parfait et éternel.
 
