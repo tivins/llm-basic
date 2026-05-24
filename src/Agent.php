@@ -12,7 +12,7 @@ class Agent
         public LLM $llm,
         public ToolRegistry $tools,
         public int $maxToolRounds = 10,
-        public string $workspace = '',
+        public ?Workspace $workspace = null,
     ) {}
 
     /**
@@ -20,6 +20,13 @@ class Agent
      */
     public function runTurn(Conversation $conversation, ChatCompletionOptions $options): AgentTurnResult
     {
+        if ($options->tools !== null && $options->tools !== $this->tools) {
+            throw new \InvalidArgumentException(
+                'ChatCompletionOptions::tools must be the same registry as Agent::tools, or omitted.',
+            );
+        }
+        $options->tools = $this->tools;
+
         $response = $this->llm->chatCompletion($conversation, $options);
         $toolRounds = 0;
 

@@ -12,6 +12,8 @@ use Tivins\LlmBasic\ToolSchema;
 use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
+use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Workspace;
 
 function getCityPopulation(): Tool
 {
@@ -90,11 +92,16 @@ function getCityWeather(): Tool
 try {
     date_default_timezone_set('Europe/Paris');
     $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
-    $tools = new ToolRegistry(getCityPopulation(), getCityWeather());
+    $workspace = new Workspace(__DIR__);
+    $tools = new ToolRegistry(
+        getCityPopulation(),
+        getCityWeather(),
+        new ReadFileTool($workspace),
+    );
 
     $llm = new LLM('http://127.0.0.1:8080');
-    $options = new ChatCompletionOptions(tools: $tools);
-    $agent = new Agent($llm, $tools);
+    $options = new ChatCompletionOptions();
+    $agent = new Agent($llm, $tools, workspace: $workspace);
     $conversation = new Conversation([
         Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
     ], $logger);
@@ -114,7 +121,7 @@ try {
             fwrite(STDERR, $result->error . PHP_EOL);
         }
     }
-    echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    // echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit(0);
 } catch (Throwable $e) {
     fwrite(STDERR, PHP_EOL . $e->getMessage() . PHP_EOL);

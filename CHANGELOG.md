@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 — 2026-05-24
+
+### Added
+
+- `Workspace` — sandboxed path resolution and file reads under a root directory.
+- `WorkspaceException` for workspace policy violations.
+- `ReadFileTool` uses `Workspace` instead of a raw path string.
+
+### Changed
+
+- `Agent::runTurn()` injects `Agent::tools` into `ChatCompletionOptions` (caller must not pass a different registry).
+- `Agent::$workspace` is now `?Workspace` instead of `string`.
+- `test.php` wires `Workspace`, `ReadFileTool`, and options without duplicate `tools:`.
+
 ## 0.5.0 — 2026-05-24
 
 ### Added
