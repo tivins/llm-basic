@@ -21,6 +21,7 @@ use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Tools\FetchWebPageTool;
 use Tivins\LlmBasic\Tools\WebSearchTool;
 use Tivins\LlmBasic\Tools\LangSearchTool;
+use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
 
 function getCityPopulation(): Tool
@@ -109,6 +110,7 @@ try {
         new ReadFileTool($workspace),
         new ReadFileRangeTool($workspace),
         new ListDirTool($workspace),
+        new GrepTool($workspace),
         new WriteFileTool($workspace),
         new ApplyPatchTool($workspace),
         new LintFileTool($workspace),

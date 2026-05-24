@@ -10,6 +10,7 @@ use Tivins\LlmBasic\Tools\ReadFileRangeTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
+use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
 
@@ -310,8 +311,70 @@ assertTrue(
     'LintFileTool JSON error for traversal',
 );
 
+// grep
+$grepSample = 'tests/_tmp/smoke-grep.txt';
+$workspace->write($grepSample, "alpha line\nBETA line\nalpha again\n");
+$fileGrep = $workspace->grep('alpha', $grepSample);
+assertTrue($fileGrep['match_count'] === 2, 'grep single file match_count');
+assertTrue($fileGrep['path'] === $grepSample, 'grep single file path');
+assertTrue(
+    ($fileGrep['matches'][0]['line'] ?? 0) === 1
+    && ($fileGrep['matches'][1]['line'] ?? 0) === 3,
+    'grep single file line numbers',
+);
+
+$caseGrep = $workspace->grep('beta', $grepSample, caseInsensitive: true);
+assertTrue($caseGrep['match_count'] === 1, 'grep case_insensitive');
+
+$dirGrep = $workspace->grep('alpha', 'tests/_tmp');
+assertTrue($dirGrep['match_count'] === 2, 'grep directory match_count');
+
+$globGrep = $workspace->grep('alpha', 'tests/_tmp', glob: '*.txt');
+assertTrue($globGrep['match_count'] === 2, 'grep directory glob filter');
+
+assertThrows(
+    fn () => $workspace->grep('[', $grepSample),
+    'Invalid regex pattern',
+    'grep invalid regex',
+);
+
+$storyFile = 'tmp/the-story-of-computing-and-information.md';
+if (is_file($root . '/' . $storyFile)) {
+    $storyGrep = $workspace->grep('Shannon', $storyFile, maxMatches: 3);
+    assertTrue($storyGrep['match_count'] >= 1, 'grep story file finds Shannon');
+    assertTrue($storyGrep['truncated'] === true, 'grep story file truncated at max_matches');
+}
+
+$grepTool = new GrepTool($workspace);
+$grepToolJson = ($grepTool->handler)(json_encode([
+    'pattern' => 'alpha',
+    'path' => $grepSample,
+]));
+$grepToolDecoded = json_decode($grepToolJson, true);
+assertTrue(
+    is_array($grepToolDecoded)
+    && ($grepToolDecoded['match_count'] ?? 0) === 2
+    && !isset($grepToolDecoded['error']),
+    'GrepTool success JSON',
+);
+
+$grepTraversalJson = ($grepTool->handler)(json_encode([
+    'pattern' => 'root',
+    'path' => '../../../etc',
+]));
+assertTrue(
+    isset(json_decode($grepTraversalJson, true)['error']),
+    'GrepTool JSON error for traversal',
+);
+
+$grepMissingPatternJson = ($grepTool->handler)(json_encode(['path' => $grepSample]));
+assertTrue(
+    isset(json_decode($grepMissingPatternJson, true)['error']),
+    'GrepTool JSON error when pattern missing',
+);
+
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $grepSample] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {

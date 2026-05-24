@@ -12,6 +12,7 @@ final class Workspace
     private const int MAX_WRITE_BYTES = 524_288;
     private const int DEFAULT_MAX_LIST_ENTRIES = 500;
     private const int DEFAULT_READ_RANGE_LIMIT = 200;
+    private const int DEFAULT_MAX_GREP_MATCHES = 500;
 
     private readonly string $root;
 
@@ -401,6 +402,58 @@ final class Workspace
     }
 
     /**
+     * @return array{
+     *     pattern: string,
+     *     path: string,
+     *     matches: list<array{file: string, line: int, content: string}>,
+     *     match_count: int,
+     *     truncated: bool,
+     * }
+     */
+    public function grep(
+        string $pattern,
+        string $relative = '',
+        bool $caseInsensitive = false,
+        ?string $glob = null,
+        int $maxMatches = self::DEFAULT_MAX_GREP_MATCHES,
+    ): array {
+        if ($pattern === '') {
+            throw new WorkspaceException('pattern is required.');
+        }
+
+        if ($maxMatches < 1) {
+            throw new WorkspaceException('max_matches must be at least 1.');
+        }
+
+        $regex = $this->compileRegex($pattern, $caseInsensitive);
+        $searchPath = $this->resolveSearchPath($relative);
+        $matches = [];
+
+        if ($searchPath['type'] === 'file') {
+            $remaining = $maxMatches;
+            $this->grepFile($searchPath['absolute'], $searchPath['display'], $regex, $remaining, $matches);
+            $truncated = count($matches) >= $maxMatches;
+        } else {
+            $truncated = $this->grepDirectory(
+                $searchPath['absolute'],
+                $searchPath['display'],
+                $regex,
+                $glob,
+                $maxMatches,
+                $matches,
+            );
+        }
+
+        return [
+            'pattern' => $pattern,
+            'path' => $searchPath['display'],
+            'matches' => $matches,
+            'match_count' => count($matches),
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
      * @return array{path: string, entries: list<array{name: string, type: 'file'|'dir'}>}
      */
     public function listDir(string $relative = '', bool $recursive = false, int $maxEntries = 500): array
@@ -422,6 +475,181 @@ final class Workspace
             'path' => $this->displayPath($relative),
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return array{absolute: string, display: string, type: 'file'|'dir'}
+     */
+    private function resolveSearchPath(string $relative): array
+    {
+        if (str_contains($relative, "\0")) {
+            throw new WorkspaceException('Invalid path.');
+        }
+
+        if ($this->isAbsolute($relative)) {
+            throw new WorkspaceException('Path must be relative to the workspace.');
+        }
+
+        $normalized = $this->normalizeRelative($relative);
+        if ($normalized === '') {
+            return [
+                'absolute' => $this->root,
+                'display' => '.',
+                'type' => 'dir',
+            ];
+        }
+
+        $candidate = $this->root . DIRECTORY_SEPARATOR . $normalized;
+        $resolved = realpath($candidate);
+        if ($resolved === false) {
+            throw new WorkspaceException("Path not found: {$relative}");
+        }
+
+        if (!$this->isInsideRoot($resolved)) {
+            throw new WorkspaceException("Path escapes workspace: {$relative}");
+        }
+
+        if (is_file($resolved)) {
+            return [
+                'absolute' => $resolved,
+                'display' => $this->displayPath($relative),
+                'type' => 'file',
+            ];
+        }
+
+        if (is_dir($resolved)) {
+            return [
+                'absolute' => $resolved,
+                'display' => $this->displayPath($relative),
+                'type' => 'dir',
+            ];
+        }
+
+        throw new WorkspaceException("Path not found: {$relative}");
+    }
+
+    private function compileRegex(string $pattern, bool $caseInsensitive): string
+    {
+        $delimiter = '#';
+        $escaped = str_replace($delimiter, '\\' . $delimiter, $pattern);
+        $regex = $delimiter . $escaped . $delimiter;
+        if ($caseInsensitive) {
+            $regex .= 'i';
+        }
+
+        set_error_handler(static fn (): bool => true);
+        $valid = @preg_match($regex, '') !== false;
+        restore_error_handler();
+
+        if (!$valid) {
+            throw new WorkspaceException('Invalid regex pattern: ' . preg_last_error_msg());
+        }
+
+        return $regex;
+    }
+
+    /**
+     * @param list<array{file: string, line: int, content: string}> $matches
+     */
+    private function grepFile(
+        string $absolute,
+        string $displayPath,
+        string $regex,
+        int &$remaining,
+        array &$matches,
+    ): void {
+        if ($remaining < 1 || !is_readable($absolute)) {
+            return;
+        }
+
+        $handle = fopen($absolute, 'rb');
+        if ($handle === false) {
+            return;
+        }
+
+        $lineNumber = 0;
+        while (($line = fgets($handle)) !== false && $remaining > 0) {
+            $lineNumber++;
+            $content = rtrim($line, "\r\n");
+            if (preg_match($regex, $content) !== 1) {
+                continue;
+            }
+
+            $matches[] = [
+                'file' => $displayPath,
+                'line' => $lineNumber,
+                'content' => $content,
+            ];
+            $remaining--;
+        }
+
+        fclose($handle);
+    }
+
+    /**
+     * @param list<array{file: string, line: int, content: string}> $matches
+     */
+    private function grepDirectory(
+        string $absolute,
+        string $displayPrefix,
+        string $regex,
+        ?string $glob,
+        int $maxMatches,
+        array &$matches,
+    ): bool {
+        $names = scandir($absolute);
+        if ($names === false) {
+            throw new WorkspaceException('Could not list directory.');
+        }
+
+        sort($names, SORT_STRING);
+
+        foreach ($names as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+
+            if (count($matches) >= $maxMatches) {
+                return true;
+            }
+
+            $full = $absolute . DIRECTORY_SEPARATOR . $name;
+            $relativeName = $displayPrefix === '.' ? $name : $displayPrefix . '/' . $name;
+
+            if (is_dir($full) && !is_link($full)) {
+                if ($this->grepDirectory($full, $relativeName, $regex, $glob, $maxMatches, $matches)) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!is_file($full) || is_link($full)) {
+                continue;
+            }
+
+            if ($glob !== null && !$this->matchesGlob($relativeName, $glob)) {
+                continue;
+            }
+
+            $remaining = $maxMatches - count($matches);
+            $this->grepFile($full, $relativeName, $regex, $remaining, $matches);
+
+            if (count($matches) >= $maxMatches) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function matchesGlob(string $relativePath, string $glob): bool
+    {
+        $path = str_replace('\\', '/', $relativePath);
+        $pattern = str_replace('\\', '/', $glob);
+
+        return fnmatch($pattern, $path, FNM_PATHNAME)
+            || fnmatch($pattern, basename($path));
     }
 
     private function isInsideRoot(string $path): bool

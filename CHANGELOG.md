@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.0 — 2026-05-25
+
+### Added
+
+- `Workspace::grep()` — regex search in a workspace file or directory with optional `glob`, case-insensitive matching, and `max_matches` (default 500).
+- `GrepTool` — `grep` tool returning `{pattern, path, matches[], match_count, truncated}` with `{file, line, content}` per match.
+- Smoke tests for grep (single file, directory, glob, invalid regex, traversal, story fixture).
+
+### Changed
+
+- `test.php` registers `GrepTool` alongside workspace read/list tools.
+
 ## 0.12.0 — 2026-05-25
 
 ### Added
