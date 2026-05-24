@@ -172,6 +172,70 @@ final class Workspace
         ];
     }
 
+    /**
+     * @return array{file: string, replacements: int, bytes_written: int}
+     */
+    public function applySearchReplace(
+        string $relative,
+        string $oldString,
+        string $newString,
+        bool $replaceAll = false,
+        bool $createIfMissing = false,
+    ): array {
+        if ($oldString === '') {
+            if ($newString === '') {
+                throw new WorkspaceException('old_string is required.');
+            }
+
+            if (!$createIfMissing) {
+                throw new WorkspaceException(
+                    'old_string is empty; set create_if_missing to create a new file.',
+                );
+            }
+
+            $writeResult = $this->write($relative, $newString, createIfMissing: true, overwrite: true);
+
+            return [
+                'file' => $writeResult['file'],
+                'replacements' => 0,
+                'bytes_written' => $writeResult['bytes_written'],
+            ];
+        }
+
+        $content = $this->read($relative);
+        $count = substr_count($content, $oldString);
+
+        if ($count === 0) {
+            throw new WorkspaceException('old_string not found in file.');
+        }
+
+        if (!$replaceAll && $count > 1) {
+            throw new WorkspaceException(
+                'old_string appears multiple times; use replace_all or provide a unique match.',
+            );
+        }
+
+        if ($replaceAll) {
+            $newContent = str_replace($oldString, $newString, $content);
+            $replacements = $count;
+        } else {
+            $position = strpos($content, $oldString);
+            if ($position === false) {
+                throw new WorkspaceException('old_string not found in file.');
+            }
+            $newContent = substr_replace($content, $newString, $position, strlen($oldString));
+            $replacements = 1;
+        }
+
+        $writeResult = $this->write($relative, $newContent, createIfMissing: true, overwrite: true);
+
+        return [
+            'file' => $writeResult['file'],
+            'replacements' => $replacements,
+            'bytes_written' => $writeResult['bytes_written'],
+        ];
+    }
+
     public function resolveDirectory(string $relative): string
     {
         if (str_contains($relative, "\0")) {

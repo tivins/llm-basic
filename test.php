@@ -14,6 +14,7 @@ use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Workspace;
 
@@ -101,6 +102,7 @@ try {
         new ReadFileTool($workspace),
         new ListDirTool($workspace),
         new WriteFileTool($workspace),
+        new ApplyPatchTool($workspace),
     );
 
     $llm = new LLM('http://127.0.0.1:8080');

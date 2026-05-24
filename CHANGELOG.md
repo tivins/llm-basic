@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — 2026-05-24
+
+### Added
+
+- `Workspace::applySearchReplace()` — in-memory search/replace with unique-match enforcement and `MAX_WRITE_BYTES` via `write()`.
+- `ApplyPatchTool` — `apply_patch` tool (`old_string`, `new_string`, optional `replace_all` and `create_if_missing`).
+- Smoke tests for apply_patch (unique replace, not found, ambiguous match).
+
+### Changed
+
+- `test.php` registers `ApplyPatchTool` alongside workspace write tools.
+
 ## 0.8.0 — 2026-05-24
 
 ### Added

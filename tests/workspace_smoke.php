@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
@@ -161,10 +162,66 @@ $noOverwriteJson = ($writeFileTool->handler)(json_encode([
 $noOverwriteDecoded = json_decode($noOverwriteJson, true);
 assertTrue(isset($noOverwriteDecoded['error']), 'WriteFileTool overwrite false returns error');
 
+// apply_patch
+$patchFile = 'tests/_tmp/smoke-patch.txt';
+$workspace->write($patchFile, "line one\nline two\nline two\n");
+$patchResult = $workspace->applySearchReplace($patchFile, 'line one', 'line 1');
+assertTrue($patchResult['replacements'] === 1, 'apply_patch single replacement count');
+assertTrue(
+    $workspace->read($patchFile) === "line 1\nline two\nline two\n",
+    'apply_patch content updated',
+);
+
+assertThrows(
+    fn () => $workspace->applySearchReplace($patchFile, 'missing', 'x'),
+    'not found',
+    'apply_patch old_string absent',
+);
+
+assertThrows(
+    fn () => $workspace->applySearchReplace($patchFile, 'line two', 'dup'),
+    'multiple times',
+    'apply_patch ambiguous without replace_all',
+);
+
+$replaceAllResult = $workspace->applySearchReplace($patchFile, 'line two', 'L2', replaceAll: true);
+assertTrue($replaceAllResult['replacements'] === 2, 'apply_patch replace_all count');
+
+$applyPatchTool = new ApplyPatchTool($workspace);
+$patchToolJson = ($applyPatchTool->handler)(json_encode([
+    'file' => $patchFile,
+    'old_string' => 'L2',
+    'new_string' => 'line 2',
+    'replace_all' => true,
+]));
+$patchToolDecoded = json_decode($patchToolJson, true);
+assertTrue(
+    is_array($patchToolDecoded)
+    && ($patchToolDecoded['replacements'] ?? 0) === 2
+    && !isset($patchToolDecoded['error']),
+    'ApplyPatchTool success JSON',
+);
+
+$patchNotFoundJson = ($applyPatchTool->handler)(json_encode([
+    'file' => $patchFile,
+    'old_string' => 'nope',
+    'new_string' => 'x',
+]));
+assertTrue(
+    isset(json_decode($patchNotFoundJson, true)['error']),
+    'ApplyPatchTool JSON error when old_string missing',
+);
+
 // cleanup tests/_tmp/
-$tmpAbsolute = $workspace->resolve($tmpFile);
-if (is_file($tmpAbsolute)) {
-    unlink($tmpAbsolute);
+foreach ([$tmpFile, $patchFile] as $relativePath) {
+    try {
+        $absolute = $workspace->resolve($relativePath);
+        if (is_file($absolute)) {
+            unlink($absolute);
+        }
+    } catch (WorkspaceException) {
+        // already removed
+    }
 }
 if (is_dir($tmpDir)) {
     rmdir($tmpDir);

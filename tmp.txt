@@ -1,0 +1,4 @@
+tu relis une conversation,
+tu resume les faits importants
+
+* problématiques rencontrées, solutions envisagées, solution apportée.
