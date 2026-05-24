@@ -129,8 +129,9 @@ try {
     ], $logger);
 
     while (true) {
-        echo "You> ";
+        echo "\e[32mYou> ";
         $ask = trim(fread(STDIN, 8192) ?: '');
+        echo "\e[0m";
         if ($ask === '' || $ask === 'q') {
             break;
         }
@@ -138,7 +139,7 @@ try {
 
         $result = $agent->runTurn($conversation, $options);
         if ($result->success && $result->message !== null) {
-            echo $result->message->content . PHP_EOL;
+            echo "\e[34m" . $result->message->content . "\e[0m" . PHP_EOL;
         } elseif ($result->error !== null) {
             fwrite(STDERR, $result->error . PHP_EOL);
         }
