@@ -6,6 +6,10 @@ namespace Tivins\LlmBasic;
 
 final class Workspace
 {
+    private const int MAX_READ_BYTES = 1_048_576;
+    private const int MAX_WRITE_BYTES = 524_288;
+    private const int DEFAULT_MAX_LIST_ENTRIES = 500;
+
     private readonly string $root;
 
     public function __construct(string $root)
@@ -59,6 +63,113 @@ final class Workspace
         }
 
         return $content;
+    }
+
+    public function resolveForWrite(string $relative, bool $createParents = true): string
+    {
+        if ($relative === '' || str_contains($relative, "\0")) {
+            throw new WorkspaceException('File path is required.');
+        }
+
+        if ($this->isAbsolute($relative)) {
+            throw new WorkspaceException('Path must be relative to the workspace.');
+        }
+
+        $this->assertRelativeDepthWithinRoot($relative);
+
+        $normalized = $this->normalizeRelative($relative);
+        if ($normalized === '') {
+            throw new WorkspaceException('File path is required.');
+        }
+
+        $candidate = $this->root . DIRECTORY_SEPARATOR . $normalized;
+        if (!$this->isInsideRoot($candidate)) {
+            throw new WorkspaceException("Path escapes workspace: {$relative}");
+        }
+
+        if (is_link($candidate)) {
+            throw new WorkspaceException("Cannot write through symlink: {$relative}");
+        }
+
+        $resolved = realpath($candidate);
+        if ($resolved !== false) {
+            if (!$this->isInsideRoot($resolved)) {
+                throw new WorkspaceException("Path escapes workspace: {$relative}");
+            }
+
+            if (is_dir($resolved)) {
+                throw new WorkspaceException("Not a file: {$relative}");
+            }
+
+            return $resolved;
+        }
+
+        $parentDir = dirname($candidate);
+        $parentResolved = realpath($parentDir);
+        if ($parentResolved === false) {
+            if (!$createParents) {
+                throw new WorkspaceException("Parent directory not found: {$relative}");
+            }
+
+            $this->ensureParentDirectories($normalized);
+            $parentResolved = realpath($parentDir);
+            if ($parentResolved === false || !$this->isInsideRoot($parentResolved)) {
+                throw new WorkspaceException("Path escapes workspace: {$relative}");
+            }
+        } elseif (!$this->isInsideRoot($parentResolved)) {
+            throw new WorkspaceException("Path escapes workspace: {$relative}");
+        }
+
+        if (!$this->isInsideRoot($candidate)) {
+            throw new WorkspaceException("Path escapes workspace: {$relative}");
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * @return array{file: string, bytes_written: int, created: bool}
+     */
+    public function write(
+        string $relative,
+        string $content,
+        bool $createIfMissing = true,
+        bool $overwrite = true,
+    ): array {
+        $bytes = strlen($content);
+        if ($bytes > self::MAX_WRITE_BYTES) {
+            throw new WorkspaceException(
+                sprintf('Content exceeds maximum size of %d bytes.', self::MAX_WRITE_BYTES),
+            );
+        }
+
+        $path = $this->resolveForWrite($relative);
+        $exists = is_file($path);
+
+        if ($exists && !$overwrite) {
+            throw new WorkspaceException("File already exists: {$relative}");
+        }
+
+        if (!$exists && !$createIfMissing) {
+            throw new WorkspaceException("File not found: {$relative}");
+        }
+
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(4));
+        if (file_put_contents($tmp, $content) === false) {
+            throw new WorkspaceException("Could not write file: {$relative}");
+        }
+
+        if (!rename($tmp, $path)) {
+            @unlink($tmp);
+
+            throw new WorkspaceException("Could not write file: {$relative}");
+        }
+
+        return [
+            'file' => $this->displayPath($relative),
+            'bytes_written' => $bytes,
+            'created' => !$exists,
+        ];
     }
 
     public function resolveDirectory(string $relative): string
@@ -153,6 +264,51 @@ final class Workspace
         $normalized = $this->normalizeRelative($relative);
 
         return $normalized === '' ? '.' : str_replace(DIRECTORY_SEPARATOR, '/', $normalized);
+    }
+
+    private function assertRelativeDepthWithinRoot(string $relative): void
+    {
+        $parts = preg_split('#[\\\\/]+#', $relative) ?: [];
+        $depth = 0;
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                $depth--;
+                if ($depth < 0) {
+                    throw new WorkspaceException("Path escapes workspace: {$relative}");
+                }
+
+                continue;
+            }
+            $depth++;
+        }
+    }
+
+    private function ensureParentDirectories(string $normalizedFile): void
+    {
+        $parentNormalized = dirname($normalizedFile);
+        if ($parentNormalized === '.' || $parentNormalized === '') {
+            return;
+        }
+
+        $parentCandidate = $this->root . DIRECTORY_SEPARATOR . $parentNormalized;
+        if (!$this->isInsideRoot($parentCandidate)) {
+            throw new WorkspaceException('Path escapes workspace.');
+        }
+
+        if (is_dir($parentCandidate)) {
+            return;
+        }
+
+        if (file_exists($parentCandidate) && !is_dir($parentCandidate)) {
+            throw new WorkspaceException('Path component is not a directory.');
+        }
+
+        if (!mkdir($parentCandidate, 0755, true) && !is_dir($parentCandidate)) {
+            throw new WorkspaceException('Could not create parent directories.');
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
 
@@ -106,6 +107,68 @@ $readFileTool = new ReadFileTool($workspace);
 $readJson = ($readFileTool->handler)(json_encode(['file' => '../../../etc/passwd']));
 $readDecoded = json_decode($readJson, true);
 assertTrue(isset($readDecoded['error']), 'ReadFileTool JSON error for traversal');
+
+// write_file: create under tests/_tmp/
+$tmpDir = $root . '/tests/_tmp';
+if (!is_dir($tmpDir)) {
+    mkdir($tmpDir, 0755, true);
+}
+$tmpFile = 'tests/_tmp/smoke-write.txt';
+$writePayload = 'smoke test content';
+$writeResult = $workspace->write($tmpFile, $writePayload);
+assertTrue($writeResult['created'] === true, 'write created new file');
+assertTrue($writeResult['bytes_written'] === strlen($writePayload), 'write bytes_written');
+assertTrue($writeResult['file'] === $tmpFile, 'write display path');
+assertTrue($workspace->read($tmpFile) === $writePayload, 'write content readable via read()');
+
+// write_file: overwrite false on existing file
+assertThrows(
+    fn () => $workspace->write($tmpFile, 'other', overwrite: false),
+    'already exists',
+    'write overwrite false on existing file',
+);
+
+// write_file: traversal blocked
+$writeFileTool = new WriteFileTool($workspace);
+$writeTraversalJson = ($writeFileTool->handler)(json_encode([
+    'file' => '../../../etc/passwd',
+    'content' => 'evil',
+]));
+$writeTraversalDecoded = json_decode($writeTraversalJson, true);
+assertTrue(isset($writeTraversalDecoded['error']), 'WriteFileTool JSON error for traversal');
+
+// WriteFileTool success JSON
+$writeToolJson = ($writeFileTool->handler)(json_encode([
+    'file' => $tmpFile,
+    'content' => 'via tool',
+    'overwrite' => true,
+]));
+$writeToolDecoded = json_decode($writeToolJson, true);
+assertTrue(
+    is_array($writeToolDecoded)
+    && ($writeToolDecoded['bytes_written'] ?? 0) === strlen('via tool')
+    && !isset($writeToolDecoded['error']),
+    'WriteFileTool returns success JSON',
+);
+assertTrue($workspace->read($tmpFile) === 'via tool', 'WriteFileTool content applied');
+
+// WriteFileTool overwrite false
+$noOverwriteJson = ($writeFileTool->handler)(json_encode([
+    'file' => $tmpFile,
+    'content' => 'nope',
+    'overwrite' => false,
+]));
+$noOverwriteDecoded = json_decode($noOverwriteJson, true);
+assertTrue(isset($noOverwriteDecoded['error']), 'WriteFileTool overwrite false returns error');
+
+// cleanup tests/_tmp/
+$tmpAbsolute = $workspace->resolve($tmpFile);
+if (is_file($tmpAbsolute)) {
+    unlink($tmpAbsolute);
+}
+if (is_dir($tmpDir)) {
+    rmdir($tmpDir);
+}
 
 echo PHP_EOL;
 if ($failures > 0) {

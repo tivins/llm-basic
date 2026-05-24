@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0 — 2026-05-24
+
+### Added
+
+- `Workspace::resolveForWrite()` and `Workspace::write()` — sandboxed file creation and replacement with atomic writes and `MAX_WRITE_BYTES` (512 KiB).
+- `WriteFileTool` — `write_file` tool with optional `create_if_missing` and `overwrite`.
+- Smoke tests for `write_file` (create, overwrite refusal, traversal) in `tests/workspace_smoke.php`.
+
+### Changed
+
+- `test.php` registers `WriteFileTool` alongside read/list workspace tools.
+
 ## 0.7.0 — 2026-05-24
 
 ### Added

@@ -14,6 +14,7 @@ use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
+use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Workspace;
 
 function getCityPopulation(): Tool
@@ -93,12 +94,13 @@ function getCityWeather(): Tool
 try {
     date_default_timezone_set('Europe/Paris');
     $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
-    $workspace = new Workspace(__DIR__);
+    $workspace = new Workspace(__DIR__ . '/tmp');
     $tools = new ToolRegistry(
         getCityPopulation(),
         getCityWeather(),
         new ReadFileTool($workspace),
         new ListDirTool($workspace),
+        new WriteFileTool($workspace),
     );
 
     $llm = new LLM('http://127.0.0.1:8080');
