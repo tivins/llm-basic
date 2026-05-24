@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — 2026-05-24
+
+### Added
+
+- `FileLinter` — registry of per-language syntax commands (extensible; PHP via `php -l` first).
+- `Workspace::lintFile()` — sandboxed path resolution, optional language or extension auto-detect.
+- `LintFileTool` — `lint_file` tool (`file`, optional `language`).
+- Smoke tests for lint (valid/invalid PHP, unsupported language, traversal).
+
+### Changed
+
+- `test.php` registers `LintFileTool` alongside workspace tools.
+
 ## 0.9.0 — 2026-05-24
 
 ### Added

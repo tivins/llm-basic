@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tivins\LlmBasic;
 
+use Random\RandomException;
+
 final class Workspace
 {
     private const int MAX_READ_BYTES = 1_048_576;
@@ -129,6 +131,7 @@ final class Workspace
 
     /**
      * @return array{file: string, bytes_written: int, created: bool}
+     * @throws RandomException
      */
     public function write(
         string $relative,
@@ -174,6 +177,7 @@ final class Workspace
 
     /**
      * @return array{file: string, replacements: int, bytes_written: int}
+     * @throws RandomException
      */
     public function applySearchReplace(
         string $relative,
@@ -266,6 +270,52 @@ final class Workspace
         }
 
         return $resolved;
+    }
+
+    /**
+     * @return array{
+     *     file: string,
+     *     language: string,
+     *     valid: bool,
+     *     output: string,
+     *     errors: list<string>
+     * }
+     */
+    public function lintFile(string $relative, string $language = '', ?FileLinter $linter = null): array
+    {
+        $path = $this->resolve($relative);
+        if (!is_file($path)) {
+            throw new WorkspaceException("Not a file: {$relative}");
+        }
+
+        $linter ??= new FileLinter();
+        $language = trim(strtolower($language));
+
+        if ($language === '') {
+            $detected = $linter->detectLanguage($relative);
+            if ($detected === null) {
+                throw new WorkspaceException(
+                    'Could not detect language from file extension; specify language. Supported: '
+                    . implode(', ', $linter->supportedLanguages()) . '.',
+                );
+            }
+            $language = $detected;
+        } elseif (!$linter->supportsLanguage($language)) {
+            throw new WorkspaceException(
+                'Unsupported language: ' . $language
+                . '. Supported: ' . implode(', ', $linter->supportedLanguages()) . '.',
+            );
+        }
+
+        $result = $linter->lint($path, $language);
+
+        return [
+            'file' => $this->displayPath($relative),
+            'language' => $language,
+            'valid' => $result['valid'],
+            'output' => $result['output'],
+            'errors' => $result['errors'],
+        ];
     }
 
     /**

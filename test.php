@@ -16,6 +16,7 @@ use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
+use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Workspace;
 
 function getCityPopulation(): Tool
@@ -103,6 +104,7 @@ try {
         new ListDirTool($workspace),
         new WriteFileTool($workspace),
         new ApplyPatchTool($workspace),
+        new LintFileTool($workspace),
     );
 
     $llm = new LLM('http://127.0.0.1:8080');

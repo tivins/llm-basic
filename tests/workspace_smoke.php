@@ -8,6 +8,7 @@ use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
+use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
 
@@ -212,8 +213,51 @@ assertTrue(
     'ApplyPatchTool JSON error when old_string missing',
 );
 
+// lint_file
+$validPhp = 'tests/_tmp/smoke-valid.php';
+$invalidPhp = 'tests/_tmp/smoke-invalid.php';
+$workspace->write($validPhp, "<?php\nreturn 1;\n");
+$workspace->write($invalidPhp, "<?php\nclass {\n");
+
+$lintValid = $workspace->lintFile($validPhp);
+assertTrue($lintValid['valid'] === true, 'lintFile valid PHP');
+assertTrue($lintValid['language'] === 'php', 'lintFile detects php');
+assertTrue($lintValid['errors'] === [], 'lintFile no errors on valid file');
+
+$lintInvalid = $workspace->lintFile($invalidPhp);
+assertTrue($lintInvalid['valid'] === false, 'lintFile invalid PHP');
+assertTrue($lintInvalid['errors'] !== [], 'lintFile returns errors on invalid file');
+
+assertThrows(
+    fn () => $workspace->lintFile('composer.json'),
+    'Could not detect language',
+    'lintFile unknown extension without language',
+);
+
+assertThrows(
+    fn () => $workspace->lintFile($validPhp, 'ruby'),
+    'Unsupported language',
+    'lintFile unsupported language',
+);
+
+$lintFileTool = new LintFileTool($workspace);
+$lintToolJson = ($lintFileTool->handler)(json_encode(['file' => $validPhp]));
+$lintToolDecoded = json_decode($lintToolJson, true);
+assertTrue(
+    is_array($lintToolDecoded)
+    && ($lintToolDecoded['valid'] ?? false) === true
+    && !isset($lintToolDecoded['error']),
+    'LintFileTool success JSON',
+);
+
+$lintTraversalJson = ($lintFileTool->handler)(json_encode(['file' => '../../../etc/passwd']));
+assertTrue(
+    isset(json_decode($lintTraversalJson, true)['error']),
+    'LintFileTool JSON error for traversal',
+);
+
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {
