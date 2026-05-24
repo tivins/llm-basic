@@ -10,6 +10,7 @@ use Tivins\LlmBasic\Role;
 use Tivins\LlmBasic\ToolSchema;
 use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolRegistry;
+use Tivins\LlmBasic\Logger;
 
 $getCityPopulation = new Tool(
     new ToolSchema(
@@ -79,13 +80,14 @@ $getCityWeather = new Tool(
     }
 );
 try {
+    $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
     $tools = new ToolRegistry($getCityPopulation, $getCityWeather);
 
     $llm = new LLM('http://127.0.0.1:8080');
     $conversation = new Conversation([
         Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
         Message::withCreatedAt(Role::User, 'What is the population and weather of Paris?'),
-    ]);
+    ], $logger);
     $options = new ChatCompletionOptions(tools: $tools);
 
     $response = $llm->chatCompletion($conversation, $options);
@@ -113,8 +115,7 @@ try {
     }
     echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit(0);
-}
-catch (Throwable $e) {
+} catch (Throwable $e) {
     fwrite(STDERR, PHP_EOL . $e->getMessage() . PHP_EOL);
     exit(1);
 }

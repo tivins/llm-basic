@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Tivins\LlmBasic;
 
@@ -6,11 +7,13 @@ class Conversation implements \JsonSerializable
 {
     public function __construct(
         public array $messages,
+        public ?Logger $logger = null,
     ) {}
 
     public function addMessage(Message $message): void
     {
         $this->messages[] = $message;
+        $this->logger?->saveConversation($this);
     }
 
     public function toChatCompletionArray(): array
