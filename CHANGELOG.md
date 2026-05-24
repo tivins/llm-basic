@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-05-24
+
+### Added
+
+- `Agent::runTurn()` — multi-round tool loop until `stop` or `maxToolRounds`.
+- `AgentTurnResult` — success flag, final message, error, and tool round count.
+
+### Changed
+
+- `test.php` delegates the agent loop to `Agent` instead of inline tool handling.
+
 ## 0.4.1 — 2026-05-23
 
 ### Changed
