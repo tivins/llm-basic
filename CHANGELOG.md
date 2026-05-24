@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.11.2 — 2026-05-25
+
+### Fixed
+
+- `WebSearchTool` — treat DuckDuckGo HTML as usable only when result anchor tags are present (not merely the `result__a` CSS class name); fall back to POST and return an error instead of a fake empty `results[]`.
+
+## 0.11.1 — 2026-05-24
+
+### Fixed
+
+- `WebSearchTool` — align DuckDuckGo HTML fetch with the working `llm-php` `PredefinedTools::webSearch` approach (GET, `tivins/llm-php` user-agent, regex parsing, native CA TLS); fall back to HTML POST when GET is blocked.
+
+## 0.11.0 — 2026-05-24
+
+### Added
+
+- `FetchWebPageTool` — `fetch_web_page` tool: HTTP GET with size-bounded streaming (`max_bytes`), optional HTML→plain-text extraction (`raw_html`), and structured JSON response (`url`, `http_status`, `content_type`, `truncated`, `text_extracted`, `body`).
+- `WebSearchTool` — `web_search` tool: DuckDuckGo HTML scraper returning `{provider, query, results[]}` with title, url, and snippet per entry.
+- `LangSearchTool` — `langsearch_web_search` tool: LangSearch API (`query`, `max_results`, `freshness`, `summary`); requires `LANGSEARCH_API_KEY` injected at construction.
+- `tests/network_tools_smoke.php` — CLI smoke tests covering happy paths, error paths, and edge cases for all three tools (LangSearch tests skipped unless `LANGSEARCH_API_KEY` is set).
+
+### Changed
+
+- `test.php` registers `FetchWebPageTool`, `WebSearchTool`, and conditionally `LangSearchTool` (when `LANGSEARCH_API_KEY` env var is present).
+
 ## 0.10.0 — 2026-05-24
 
 ### Added

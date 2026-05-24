@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tivins\LlmBasic\Tools;
 
 use Tivins\LlmBasic\Tool;
@@ -14,8 +16,8 @@ class LangSearchTool extends Tool
         parent::__construct(
             new ToolSchema(
                 'langsearch_web_search',
-                'Search the web via LangSearch API (richer snippets and optional summaries). Requires a LangSearch API key. '
-                . 'Quota per session: QPS 1, QPM 60, QPD 1000 — when exhausted, use web_search (DuckDuckGo) instead. '
+                'Search the web via LangSearch API (richer snippets and optional summaries). '
+                . 'API-enforced quotas: QPS 1, QPM 60, QPD 1000 — if the API returns a rate-limit error, fall back to web_search (DuckDuckGo) instead. '
                 . 'Use fetch_web_page to read the full body of a returned URL.',
                 [
                     'type' => 'object',
@@ -93,7 +95,7 @@ class LangSearchTool extends Tool
                     ],
                     CURLOPT_POSTFIELDS => $payload,
                     CURLOPT_ENCODING => '',
-                    CURLOPT_USERAGENT => 'tivins/llm-php (PredefinedTools; +https://github.com/tivins/llm-php)',
+                    CURLOPT_USERAGENT => 'tivins/llm-basic (LangSearchTool; +https://github.com/tivins/llm-basic)',
                     CURLOPT_SSL_VERIFYPEER => true,
                     CURLOPT_SSL_VERIFYHOST => 2,
                 ]);
@@ -112,7 +114,7 @@ class LangSearchTool extends Tool
 
                 if ($body === false || $body === '') {
                     return $this->formatError($error_payload + [
-                        'error' => 'could not initialize HTTP client',
+                        'error' => $errno !== 0 ? $err : 'empty response from LangSearch API',
                     ]);
                 }
                 if ($code === 429) {
@@ -128,7 +130,9 @@ class LangSearchTool extends Tool
                 if ($apiCode !== 200 && $apiCode !== '200') {
                     $msg = is_string($decoded['msg'] ?? null) ? $decoded['msg'] : 'LangSearch API error';
                     return $this->formatError($error_payload + ['error' => $msg]);
-                }$values = $decoded['data']['webPages']['value'] ?? [];
+                }
+
+                $values = $decoded['data']['webPages']['value'] ?? [];
                 if (!is_array($values)) {
                     $values = [];
                 }
@@ -141,13 +145,10 @@ class LangSearchTool extends Tool
                     }
 
                     $url = $entry['url'] ?? '';
-                    $title = $entry['name'] ?? '';
                     if (!is_string($url) || $url === '' || !str_starts_with($url, 'http')) {
                         continue;
                     }
-                    if (!is_string($title) || $title === '') {
-                        continue;
-                    }
+                    $title = is_string($entry['name'] ?? null) ? $entry['name'] : '';
 
                     $snippet = is_string($entry['snippet'] ?? null) ? $entry['snippet'] : '';
                     $row = [

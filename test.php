@@ -17,6 +17,9 @@ use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
+use Tivins\LlmBasic\Tools\FetchWebPageTool;
+use Tivins\LlmBasic\Tools\WebSearchTool;
+use Tivins\LlmBasic\Tools\LangSearchTool;
 use Tivins\LlmBasic\Workspace;
 
 function getCityPopulation(): Tool
@@ -97,6 +100,8 @@ try {
     date_default_timezone_set('Europe/Paris');
     $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
     $workspace = new Workspace(__DIR__ . '/tmp');
+    $langSearchKey = getenv('LANGSEARCH_API_KEY');
+
     $tools = new ToolRegistry(
         getCityPopulation(),
         getCityWeather(),
@@ -105,6 +110,11 @@ try {
         new WriteFileTool($workspace),
         new ApplyPatchTool($workspace),
         new LintFileTool($workspace),
+        new FetchWebPageTool(),
+        new WebSearchTool(),
+        ...($langSearchKey !== false && $langSearchKey !== ''
+            ? [new LangSearchTool($langSearchKey)]
+            : []),
     );
 
     $llm = new LLM('http://127.0.0.1:8080');

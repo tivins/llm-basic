@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tivins\LlmBasic\Tools;
 
 use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolSchema;
 
-// TODO implement
 class FetchWebPageTool extends Tool
 {
     public function __construct()
@@ -71,7 +72,7 @@ class FetchWebPageTool extends Tool
                         CURLOPT_TIMEOUT => 30,
                         CURLOPT_FOLLOWLOCATION => true,
                         CURLOPT_MAXREDIRS => 5,
-                        CURLOPT_USERAGENT => 'tivins/llm-php (PredefinedTools; +https://github.com/tivins/llm-php)',
+                        CURLOPT_USERAGENT => 'tivins/llm-basic (FetchWebPageTool; +https://github.com/tivins/llm-basic)',
                         CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                         CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                         CURLOPT_ENCODING => '',
