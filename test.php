@@ -12,103 +12,121 @@ use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
 
-$getCityPopulation = new Tool(
-    new ToolSchema(
-        'get_city_population',
-        'Get the population of a city.',
-        [
-            'type' => 'object',
-            'properties' => [
-                'city' => [
-                    'type' => 'string',
-                    'description' => 'City name, e.g. Paris',
+function getCityPopulation(): Tool
+{
+    return new Tool(
+        new ToolSchema(
+            'get_city_population',
+            'Get the population of a city.',
+            [
+                'type' => 'object',
+                'properties' => [
+                    'city' => [
+                        'type' => 'string',
+                        'description' => 'City name, e.g. Paris',
+                    ],
                 ],
+                'required' => ['city'],
             ],
-            'required' => ['city'],
-        ],
-    ),
-    function (string $argumentsJson): string {
-        $args = json_decode($argumentsJson, true) ?? [];
-        $city = $args['city'] ?? 'unknown';
+        ),
+        function (string $argumentsJson): string {
+            $args = json_decode($argumentsJson, true) ?? [];
+            $city = $args['city'] ?? 'unknown';
 
-        return json_encode([
-            'city' => $city,
-            'population' => match (strtolower($city)) {
-                'paris' => 2_161_000,
-                'lyon' => 516_000,
-                default => 100_000,
-            },
-            'source' => 'fake',
-        ], JSON_UNESCAPED_UNICODE);
-    }
-);
+            return json_encode([
+                'city' => $city,
+                'population' => match (strtolower($city)) {
+                    'paris' => 2_161_000,
+                    'lyon' => 516_000,
+                    default => 100_000,
+                },
+                'source' => 'fake',
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    );
+}
 
-$getCityWeather = new Tool(
-    new ToolSchema(
-        'get_city_weather',
-        'Get the weather of a city.',
-        [
-            'type' => 'object',
-            'properties' => [
-                'city' => [
-                    'type' => 'string',
-                    'description' => 'City name, e.g. Paris',
+function getCityWeather(): Tool
+{
+    return new Tool(
+        new ToolSchema(
+            'get_city_weather',
+            'Get the weather of a city.',
+            [
+                'type' => 'object',
+                'properties' => [
+                    'city' => [
+                        'type' => 'string',
+                        'description' => 'City name, e.g. Paris',
+                    ],
                 ],
+                'required' => ['city'],
             ],
-            'required' => ['city'],
-        ],
-    ),
-    function (string $argumentsJson): string {
-        $args = json_decode($argumentsJson, true) ?? [];
-        $city = $args['city'] ?? 'unknown';
+        ),
+        function (string $argumentsJson): string {
+            $args = json_decode($argumentsJson, true) ?? [];
+            $city = $args['city'] ?? 'unknown';
 
-        return json_encode([
-            'city' => $city,
-            'temperature' => match (strtolower($city)) {
-                'paris' => 22,
-                'lyon' => 18,
-                default => 15,
-            },
-            'unit' => 'celsius',
-            'condition' => match (strtolower($city)) {
-                'paris' => 'sunny',
-                'lyon' => 'cloudy',
-                default => 'rainy',
-            },
-            'source' => 'fake',
-        ], JSON_UNESCAPED_UNICODE);
-    }
-);
+            return json_encode([
+                'city' => $city,
+                'temperature' => match (strtolower($city)) {
+                    'paris' => 22,
+                    'lyon' => 18,
+                    default => 15,
+                },
+                'unit' => 'celsius',
+                'condition' => match (strtolower($city)) {
+                    'paris' => 'sunny',
+                    'lyon' => 'cloudy',
+                    default => 'rainy',
+                },
+                'source' => 'fake',
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    );
+}
+
 try {
+    date_default_timezone_set('Europe/Paris');
     $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
-    $tools = new ToolRegistry($getCityPopulation, $getCityWeather);
+    $tools = new ToolRegistry(getCityPopulation(), getCityWeather());
 
     $llm = new LLM('http://127.0.0.1:8080');
+    $options = new ChatCompletionOptions(tools: $tools);
     $conversation = new Conversation([
         Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
-        Message::withCreatedAt(Role::User, 'What is the population and weather of Paris?'),
     ], $logger);
-    $options = new ChatCompletionOptions(tools: $tools);
 
-    $response = $llm->chatCompletion($conversation, $options);
-
-    if ($response->finishReason() === 'stop') {
-        $stored = $response->toStoredMessage($options, $response->duration);
-        if ($stored !== null) {
-            $conversation->addMessage($stored);
+    while (true) {
+        echo "You> ";
+        $ask = trim(fread(STDIN, 8192) ?: '');
+        if ($ask === '' || $ask === 'q') {
+            break;
         }
-    } elseif ($response->hasToolCalls()) {
-        $assistant = $response->assistantMessage();
-        if ($assistant !== null) {
-            $conversation->addMessage($response->toStoredMessage($options, $response->duration) ?? $assistant);
-            foreach ($tools->executeAll($assistant->toolCalls ?? []) as $toolMessage) {
-                $conversation->addMessage($toolMessage);
+        $conversation->addMessage(Message::withCreatedAt(Role::User, $ask));
+
+        $response = $llm->chatCompletion($conversation, $options);
+
+        if ($response->finishReason() === 'stop') {
+            $stored = $response->toStoredMessage($options, $response->duration);
+            if ($stored !== null) {
+                $conversation->addMessage($stored);
+                echo $stored->content . PHP_EOL;
             }
-            $response = $llm->chatCompletion($conversation, $options);
-            if ($response->finishReason() === 'stop') {
-                $stored = $response->toStoredMessage($options, $response->duration);
-                if ($stored !== null) {
-                    $conversation->addMessage($stored);
+        } elseif ($response->hasToolCalls()) {
+            $assistant = $response->assistantMessage();
+            if ($assistant !== null) {
+                $conversation->addMessage($response->toStoredMessage($options, $response->duration) ?? $assistant);
+                foreach ($tools->executeAll($assistant->toolCalls ?? []) as $toolMessage) {
+                    $conversation->addMessage($toolMessage);
+                }
+                $response = $llm->chatCompletion($conversation, $options);
+                if ($response->finishReason() === 'stop') {
+                    $stored = $response->toStoredMessage($options, $response->duration);
+                    if ($stored !== null) {
+                        $conversation->addMessage($stored);
+                        echo $stored->content . PHP_EOL;
+                    }
                 }
             }
         }
