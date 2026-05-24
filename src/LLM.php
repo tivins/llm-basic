@@ -2,6 +2,8 @@
 
 namespace Tivins\LlmBasic;
 
+use Exception;
+
 class LLM
 {
     public function __construct(
@@ -10,6 +12,9 @@ class LLM
         public ?string $defaultModel = null,
     ) {}
 
+    /**
+     * @throws Exception
+     */
     public function chatCompletion(Conversation $conversation, ChatCompletionOptions $options): ChatCompletionResponse
     {
         $start = hrtime(true);
@@ -29,14 +34,18 @@ class LLM
         curl_setopt($curl, CURLOPT_POST, 1);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
         $response = curl_exec($curl);
+        if ($response === false) {
+            throw new Exception(curl_error($curl));
+        }
         curl_close($curl);
 
         $data = json_decode($response, true);
         $usage = new Usage(
-            $data['usage']['prompt_tokens'],
-            $data['usage']['completion_tokens'],
-            $data['usage']['total_tokens'],
+            $data['usage']['prompt_tokens'] ?? 0,
+            $data['usage']['completion_tokens'] ?? 0,
+            $data['usage']['total_tokens'] ?? 0,
         );
 
         $choices = [];

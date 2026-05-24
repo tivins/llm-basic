@@ -78,37 +78,43 @@ $getCityWeather = new Tool(
         ], JSON_UNESCAPED_UNICODE);
     }
 );
+try {
+    $tools = new ToolRegistry($getCityPopulation, $getCityWeather);
 
-$tools = new ToolRegistry($getCityPopulation, $getCityWeather);
+    $llm = new LLM('http://127.0.0.1:8080');
+    $conversation = new Conversation([
+        Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
+        Message::withCreatedAt(Role::User, 'What is the population and weather of Paris?'),
+    ]);
+    $options = new ChatCompletionOptions(tools: $tools);
 
-$llm = new LLM('http://127.0.0.1:8080');
-$conversation = new Conversation([
-    Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
-    Message::withCreatedAt(Role::User, 'What is the population of Paris?'),
-]);
-$options = new ChatCompletionOptions(n: 1, tools: $tools);
+    $response = $llm->chatCompletion($conversation, $options);
 
-$response = $llm->chatCompletion($conversation, $options);
-
-if ($response->finishReason() === 'stop') {
-    $stored = $response->toStoredMessage($options, $response->duration);
-    if ($stored !== null) {
-        $conversation->addMessage($stored);
-    }
-} elseif ($response->hasToolCalls()) {
-    $assistant = $response->assistantMessage();
-    if ($assistant !== null) {
-        $conversation->addMessage($response->toStoredMessage($options, $response->duration) ?? $assistant);
-        foreach ($tools->executeAll($assistant->toolCalls ?? []) as $toolMessage) {
-            $conversation->addMessage($toolMessage);
+    if ($response->finishReason() === 'stop') {
+        $stored = $response->toStoredMessage($options, $response->duration);
+        if ($stored !== null) {
+            $conversation->addMessage($stored);
         }
-        $response = $llm->chatCompletion($conversation, $options);
-        if ($response->finishReason() === 'stop') {
-            $stored = $response->toStoredMessage($options, $response->duration);
-            if ($stored !== null) {
-                $conversation->addMessage($stored);
+    } elseif ($response->hasToolCalls()) {
+        $assistant = $response->assistantMessage();
+        if ($assistant !== null) {
+            $conversation->addMessage($response->toStoredMessage($options, $response->duration) ?? $assistant);
+            foreach ($tools->executeAll($assistant->toolCalls ?? []) as $toolMessage) {
+                $conversation->addMessage($toolMessage);
+            }
+            $response = $llm->chatCompletion($conversation, $options);
+            if ($response->finishReason() === 'stop') {
+                $stored = $response->toStoredMessage($options, $response->duration);
+                if ($stored !== null) {
+                    $conversation->addMessage($stored);
+                }
             }
         }
     }
+    echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit(0);
 }
-echo json_encode($conversation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+catch (Throwable $e) {
+    fwrite(STDERR, PHP_EOL . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
