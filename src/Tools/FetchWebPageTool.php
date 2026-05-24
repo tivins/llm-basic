@@ -38,15 +38,126 @@ class FetchWebPageTool extends Tool
                 ],
             ),
             function (string $argumentsJson): string {
-                return 'not implemented';
+                $parameters = json_decode($argumentsJson, true) ?? [];
+                $url = $parameters['url'] ?? '';
+                if (!is_string($url) || $url === '') {
+                    return json_encode(['error' => 'url must be a non-empty string'], JSON_UNESCAPED_UNICODE);
+                }
+                $parts = parse_url($url);
+                if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+                    return json_encode(['error' => 'invalid URL'], JSON_UNESCAPED_UNICODE);
+                }
+
+                $scheme = strtolower((string) $parts['scheme']);
+                if (!in_array($scheme, ['http', 'https'], true)) {
+                    return json_encode(['error' => 'only http and https URLs are allowed'], JSON_UNESCAPED_UNICODE);
+                }
+
+                $rawHtml = filter_var($parameters['raw_html'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                $maxBytes = isset($parameters['max_bytes']) ? (int) $parameters['max_bytes'] : 524_288;
+                $maxBytes = max(1024, min(2 * 1024 * 1024, $maxBytes));
+
+                $body = '';
+                $truncated = false;
+
+                $ch = curl_init($url);
+                if ($ch === false) {
+                    return json_encode(['error' => 'could not initialize HTTP client'], JSON_UNESCAPED_UNICODE);
+                }
+
+                curl_setopt_array($ch, [
+                        CURLOPT_HTTPGET => true,
+                        CURLOPT_TIMEOUT => 30,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_MAXREDIRS => 5,
+                        CURLOPT_USERAGENT => 'tivins/llm-php (PredefinedTools; +https://github.com/tivins/llm-php)',
+                        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                        CURLOPT_ENCODING => '',
+                        CURLOPT_SSL_VERIFYPEER => true,
+                        CURLOPT_SSL_VERIFYHOST => 2,
+                        CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$body, &$truncated, $maxBytes): int {
+                            $len = strlen($chunk);
+                            $have = strlen($body);
+                            if ($have >= $maxBytes) {
+                                $truncated = true;
+
+                                return 0;
+                            }
+
+                            $space = $maxBytes - $have;
+                            if ($len <= $space) {
+                                $body .= $chunk;
+                            } else {
+                                $body .= substr($chunk, 0, $space);
+                                $truncated = true;
+                            }
+
+                            return $len;
+                        },
+                    ]);
+
+                curl_exec($ch);
+                $err = curl_error($ch);
+                $errno = curl_errno($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+                $effective = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+                $ctype = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+                curl_close($ch);
+
+                if ($body === '' && $errno !== 0) {
+                    $payload = ['error' => $err !== '' ? $err : 'request failed', 'curl_errno' => $errno];
+                    return json_encode($payload, JSON_UNESCAPED_UNICODE);
+                }
+
+                $textExtracted = false;
+                if (!$rawHtml && self::httpResponseLooksHtml($ctype, $body)) {
+                    $body = self::htmlResponseToPlainText($body);
+                    $textExtracted = true;
+                }
+
+                return json_encode([
+                    'url' => $effective !== '' ? $effective : $url,
+                    'http_status' => $code,
+                    'content_type' => $ctype,
+                    'truncated' => $truncated,
+                    'text_extracted' => $textExtracted,
+                    'body' => $body,
+                ], JSON_UNESCAPED_UNICODE);
             }
         );
+    }
+
+    private function httpResponseLooksHtml(string $contentType, string $body): bool
+    {
+        $ct = strtolower($contentType);
+        if ($ct !== '') {
+            if (str_contains($ct, 'text/html') || str_contains($ct, 'application/xhtml+xml')) {
+                return true;
+            }
+            if (
+                str_contains($ct, 'json')
+                || (str_contains($ct, 'xml') && !str_contains($ct, 'html'))
+                || str_starts_with($ct, 'image/')
+                || str_starts_with($ct, 'audio/')
+                || str_starts_with($ct, 'video/')
+                || str_contains($ct, 'octet-stream')
+            ) {
+                return false;
+            }
+        }
+
+        $trim = ltrim($body);
+
+        return str_starts_with($trim, '<')
+            && preg_match('/^<\s*(!DOCTYPE|html|head|body|div|span|main|article|section)\b/i', $trim) === 1;
     }
 
     /**
      * Reduces HTML/XHTML-like responses to plain visible text so tool results stay smaller in LLM context.
      */
-    private static function htmlResponseToPlainText(string $html): string
+    private function htmlResponseToPlainText(string $html): string
     {
         $stripBlock = static function (string $markup, string $tag): string {
             $pattern = '#<' . $tag . '\b[^>]*>.*?</' . $tag . '>#is';
