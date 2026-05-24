@@ -22,22 +22,4 @@ class ToolSchema
             ],
         ];
     }
-
-    public static function getWeather(): self
-    {
-        return new self(
-            'get_weather',
-            'Get the current weather in a given location.',
-            [
-                'type' => 'object',
-                'properties' => [
-                    'location' => [
-                        'type' => 'string',
-                        'description' => 'City name, e.g. Paris',
-                    ],
-                ],
-                'required' => ['location'],
-            ],
-        );
-    }
 }

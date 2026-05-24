@@ -109,7 +109,7 @@ try {
 
     $llm = new LLM('http://127.0.0.1:8080');
     $options = new ChatCompletionOptions();
-    $agent = new Agent($llm, $tools, workspace: $workspace);
+    $agent = new Agent($llm, $tools, maxToolRounds: 20, workspace: $workspace);
     $conversation = new Conversation([
         Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
     ], $logger);
