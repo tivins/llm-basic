@@ -12,6 +12,7 @@ use Tivins\LlmBasic\ToolSchema;
 use Tivins\LlmBasic\Tool;
 use Tivins\LlmBasic\ToolRegistry;
 use Tivins\LlmBasic\Logger;
+use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Workspace;
 
@@ -97,6 +98,7 @@ try {
         getCityPopulation(),
         getCityWeather(),
         new ReadFileTool($workspace),
+        new ListDirTool($workspace),
     );
 
     $llm = new LLM('http://127.0.0.1:8080');

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 — 2026-05-24
+
+### Added
+
+- `Workspace::resolveDirectory()` and `Workspace::listDir()` for sandboxed directory listing.
+- `ListDirTool` — `list_dir` tool with optional `recursive` and `max_entries`.
+- `tests/workspace_smoke.php` — CLI smoke tests for workspace reads and directory listing.
+
+### Changed
+
+- `test.php` registers `ListDirTool` alongside `ReadFileTool`.
+
 ## 0.6.0 — 2026-05-24
 
 ### Added
