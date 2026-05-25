@@ -229,6 +229,18 @@ class Invoke
     }
 
     /**
+     * @throws Exception
+     */
+    public function deleteImage(string $imageName): void
+    {
+        if ($imageName === '') {
+            throw new Exception('Image name is required to delete.');
+        }
+
+        $this->request('DELETE', '/api/v1/images/i/' . rawurlencode($imageName));
+    }
+
+    /**
      * @return array<string, mixed>
      *
      * @throws Exception
@@ -266,6 +278,10 @@ class Invoke
         }
 
         if (!is_array($decoded)) {
+            if ($response === '' || $response === false) {
+                return [];
+            }
+
             throw new Exception("Unexpected Invoke response on {$path}: {$response}");
         }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 — 2026-05-25
+
+### Added
+
+- `Invoke::deleteImage()` — delete a generated image via `DELETE /api/v1/images/i/{image_name}`.
+
 ## 0.15.0 — 2026-05-25
 
 ### Added
