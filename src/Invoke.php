@@ -58,6 +58,8 @@ class Invoke
     /**
      * @param array<string, mixed> $model
      *
+     * @return array{batch_id: string, item_id: int}
+     *
      * @throws Exception
      */
     public function enqueueTextToImage(
@@ -67,7 +69,7 @@ class Invoke
         int $steps = 30,
         int $width = 768,
         int $height = 1024,
-    ): string {
+    ): array {
         $isSdxl = ($model['base'] ?? '') === 'sdxl';
         $modelRef = [
             'key' => $model['key'],
@@ -116,11 +118,6 @@ class Invoke
                 'type' => 'l2i',
                 'id' => 'latents_to_image',
             ],
-            'save_image' => [
-                'type' => 'save_image',
-                'id' => 'save_image',
-                'is_intermediate' => false,
-            ],
         ];
 
         $edges = [
@@ -132,7 +129,6 @@ class Invoke
             $this->edge('noise', 'noise', 'denoise', 'noise'),
             $this->edge('denoise', 'latents', 'latents_to_image', 'latents'),
             $this->edge('model_loader', 'vae', 'latents_to_image', 'vae'),
-            $this->edge('latents_to_image', 'image', 'save_image', 'image'),
         ];
 
         if ($isSdxl) {
@@ -157,7 +153,16 @@ class Invoke
             throw new Exception('Invoke did not return a batch_id: ' . json_encode($response, JSON_UNESCAPED_UNICODE));
         }
 
-        return $batchId;
+        $itemIds = $response['item_ids'] ?? [];
+        $itemId = is_array($itemIds) ? ($itemIds[0] ?? null) : null;
+        if (!is_int($itemId)) {
+            throw new Exception('Invoke did not return a queue item_id: ' . json_encode($response, JSON_UNESCAPED_UNICODE));
+        }
+
+        return [
+            'batch_id' => $batchId,
+            'item_id' => $itemId,
+        ];
     }
 
     /**
@@ -165,7 +170,7 @@ class Invoke
      *
      * @throws Exception
      */
-    public function waitForBatchImage(string $batchId, ?int $timeoutSeconds = null): array
+    public function waitForBatchImage(string $batchId, int $itemId, ?int $timeoutSeconds = null): array
     {
         $timeoutSeconds ??= $this->timeoutSeconds;
         $deadline = time() + $timeoutSeconds;
@@ -183,13 +188,13 @@ class Invoke
             $completed = (int) ($status['completed'] ?? 0);
             $total = (int) ($status['total'] ?? 0);
             if ($total > 0 && $completed === $total) {
-                $images = $this->request('GET', '/api/v1/images/?is_intermediate=false&limit=1');
-                $items = $images['items'] ?? [];
-                if ($items === []) {
-                    throw new Exception('Batch completed but no image was returned.');
+                $queueItem = $this->request('GET', '/api/v1/queue/' . $this->queueId . '/i/' . $itemId);
+                $sessionId = $queueItem['session_id'] ?? null;
+                if (!is_string($sessionId) || $sessionId === '') {
+                    throw new Exception('Batch completed but queue item has no session_id.');
                 }
 
-                return $items[0];
+                return $this->findSessionImage($sessionId);
             }
 
             sleep(2);
@@ -212,11 +217,11 @@ class Invoke
         ?string $modelName = null,
     ): array {
         $model = $this->fetchModel($modelName);
-        $batchId = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height);
+        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height);
 
         return [
-            'batch_id' => $batchId,
-            'image' => $this->waitForBatchImage($batchId),
+            'batch_id' => $enqueued['batch_id'],
+            'image' => $this->waitForBatchImage($enqueued['batch_id'], $enqueued['item_id']),
         ];
     }
 
@@ -286,6 +291,24 @@ class Invoke
         }
 
         return $decoded;
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws Exception
+     */
+    private function findSessionImage(string $sessionId): array
+    {
+        $images = $this->request('GET', '/api/v1/images/?is_intermediate=false&limit=50');
+        $items = $images['items'] ?? [];
+        foreach ($items as $item) {
+            if (($item['session_id'] ?? null) === $sessionId) {
+                return $item;
+            }
+        }
+
+        throw new Exception("Batch completed but no image was found for session {$sessionId}.");
     }
 
     /**

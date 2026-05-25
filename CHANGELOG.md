@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.2 — 2026-05-25
+
+### Fixed
+
+- `Invoke::enqueueTextToImage()` — remove redundant `save_image` node; `l2i` already persists the decoded image, so the extra node created a duplicate on Invoke.
+- `Invoke::waitForBatchImage()` — resolve the batch image by queue `session_id` instead of fetching the latest global image.
+
 ## 0.15.1 — 2026-05-25
 
 ### Added
