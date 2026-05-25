@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1 — 2026-05-25
+
+### Changed
+
+- `LLM` accepts an optional `timeoutSeconds` constructor argument (default 120) instead of a hardcoded 30s cURL timeout.
+
 ## 0.14.0 — 2026-05-25
 
 ### Added

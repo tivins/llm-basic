@@ -11,6 +11,7 @@ class LLM
         public string $endpoint,
         public ?string $apiKey = null,
         public ?string $defaultModel = null,
+        public int $timeoutSeconds = 120,
     ) {}
 
     /**
@@ -35,7 +36,8 @@ class LLM
         curl_setopt($curl, CURLOPT_POST, 1);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, min(10, $this->timeoutSeconds));
+        curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeoutSeconds);
         $response = curl_exec($curl);
         if ($response === false) {
             throw new Exception(curl_error($curl));

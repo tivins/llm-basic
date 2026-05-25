@@ -6,6 +6,7 @@ use Tivins\LlmBasic\Agent;
 use Tivins\LlmBasic\AgentHooks;
 use Tivins\LlmBasic\ChatCompletionOptions;
 use Tivins\LlmBasic\Conversation;
+use Tivins\LlmBasic\Hooks\BeforeLlmCallEvent;
 use Tivins\LlmBasic\Hooks\BeforeToolCallEvent;
 use Tivins\LlmBasic\LLM;
 use Tivins\LlmBasic\Message;
@@ -123,11 +124,14 @@ try {
             : []),
     );
 
-    $llm = new LLM('http://127.0.0.1:8080');
+    $llm = new LLM('http://127.0.0.1:8080', timeoutSeconds: 600);
     $options = new ChatCompletionOptions();
     $hooks = new AgentHooks();
     $hooks->beforeToolCall(function (BeforeToolCallEvent $event) {
-        echo "Tool : " . $event->call->name . PHP_EOL;
+        echo "Tool : {$event->call->name}, tool_round={$event->toolRound}, {$event->call->arguments}\n";
+    });
+    $hooks->beforeLlmCall(function (BeforeLlmCallEvent $event) {
+        echo "Calling llm toolRound={$event->toolRound}\n";
     });
     $agent = new Agent($llm, $tools, maxToolRounds: 20, workspace: $workspace, hooks: $hooks);
     $conversation = new Conversation([

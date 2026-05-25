@@ -6,7 +6,7 @@ namespace Tivins\LlmBasic;
 class Conversation implements \JsonSerializable
 {
     public function __construct(
-        public array $messages,
+        public array $messages = [],
         public ?Logger $logger = null,
     ) {}
 

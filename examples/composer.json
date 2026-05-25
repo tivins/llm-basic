@@ -1,0 +1,14 @@
+{
+  "name": "tivins/llm-examples",
+  "description": "examples",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "tivins"
+    }
+  ],
+  "require": {
+    "tivins/php-core": "^1.5"
+  }
+}
