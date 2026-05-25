@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.3 — 2026-05-25
+
+### Added
+
+- `Invoke::listSchedulers()` — list scheduler IDs from Invoke OpenAPI (`DenoiseLatentsInvocation` schema).
+- `Invoke::enqueueTextToImage()` / `Invoke::textToImage()` — optional `$scheduler` argument (default `euler`; e.g. `dpmpp_2m_k` for DPM++ 2M Karras).
+
 ## 0.15.2 — 2026-05-25
 
 ### Fixed

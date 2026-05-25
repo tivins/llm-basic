@@ -16,16 +16,18 @@ $negative_prompt = 'blurry, photo, painting, color. messy, dirty. unfinished. fr
 $steps = 30;
 $width = 768;
 $height = 1024;
+$cfg_scale = 5;
+$scheduler = 'dpmpp_2m_k';//dpmpp_2m_sde_k
 
 try {
     $invoke = new Invoke();
 
     /*
-    var_dump($invoke->listModels());
+    var_dump($invoke->listSchedulers());
     exit;
     */
 
-    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name);
+    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler);
     $image = $result['image'];
 
     echo "batch_id: {$result['batch_id']}\n";

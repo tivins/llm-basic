@@ -14,6 +14,22 @@ class Invoke
     ) {}
 
     /**
+     * @return list<string>
+     *
+     * @throws Exception
+     */
+    public function listSchedulers(): array
+    {
+        $schema = $this->request('GET', '/openapi.json');
+        $schedulers = $schema['components']['schemas']['DenoiseLatentsInvocation']['properties']['scheduler']['enum'] ?? null;
+        if (!is_array($schedulers) || $schedulers === []) {
+            throw new Exception('Could not read schedulers from Invoke OpenAPI schema.');
+        }
+
+        return array_values(array_filter($schedulers, 'is_string'));
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      *
      * @throws Exception
@@ -69,6 +85,8 @@ class Invoke
         int $steps = 30,
         int $width = 768,
         int $height = 1024,
+        float $cfgScale = 7.5,
+        string $scheduler = 'euler',
     ): array {
         $isSdxl = ($model['base'] ?? '') === 'sdxl';
         $modelRef = [
@@ -109,8 +127,8 @@ class Invoke
                 'type' => 'denoise_latents',
                 'id' => 'denoise',
                 'steps' => $steps,
-                'cfg_scale' => 7.5,
-                'scheduler' => 'euler',
+                'cfg_scale' => $cfgScale,
+                'scheduler' => $scheduler,
                 'denoising_start' => 0,
                 'denoising_end' => 1,
             ],
@@ -215,9 +233,11 @@ class Invoke
         int $width = 768,
         int $height = 1024,
         ?string $modelName = null,
+        float $cfgScale = 7.5,
+        string $scheduler = 'euler',
     ): array {
         $model = $this->fetchModel($modelName);
-        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height);
+        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler);
 
         return [
             'batch_id' => $enqueued['batch_id'],
