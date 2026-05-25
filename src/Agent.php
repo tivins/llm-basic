@@ -5,6 +5,15 @@ declare(strict_types=1);
 namespace Tivins\LlmBasic;
 
 use Exception;
+use Tivins\LlmBasic\Hooks\AfterLlmCallEvent;
+use Tivins\LlmBasic\Hooks\AfterToolCallEvent;
+use Tivins\LlmBasic\Hooks\AfterToolRoundEvent;
+use Tivins\LlmBasic\Hooks\AfterTurnEvent;
+use Tivins\LlmBasic\Hooks\BeforeLlmCallEvent;
+use Tivins\LlmBasic\Hooks\BeforeToolCallEvent;
+use Tivins\LlmBasic\Hooks\BeforeToolRoundEvent;
+use Tivins\LlmBasic\Hooks\BeforeTurnEvent;
+use Tivins\LlmBasic\Hooks\OnMaxToolRoundsExceededEvent;
 
 class Agent
 {
@@ -13,6 +22,7 @@ class Agent
         public ToolRegistry $tools,
         public int $maxToolRounds = 10,
         public ?Workspace $workspace = null,
+        public AgentHooks $hooks = new AgentHooks(),
     ) {}
 
     /**
@@ -27,11 +37,41 @@ class Agent
         }
         $options->tools = $this->tools;
 
-        $response = $this->llm->chatCompletion($conversation, $options);
+        $this->hooks->dispatch(
+            AgentHookEvent::BeforeTurn,
+            new BeforeTurnEvent($conversation, $options),
+        );
+
+        $result = $this->runTurnInner($conversation, $options);
+
+        $this->hooks->dispatch(
+            AgentHookEvent::AfterTurn,
+            new AfterTurnEvent($conversation, $options, $result),
+        );
+
+        return $result;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function runTurnInner(Conversation $conversation, ChatCompletionOptions $options): AgentTurnResult
+    {
+        $response = $this->callLlm($conversation, $options, toolRound: 0);
         $toolRounds = 0;
 
         while ($response->hasToolCalls()) {
             if ($toolRounds >= $this->maxToolRounds) {
+                $this->hooks->dispatch(
+                    AgentHookEvent::OnMaxToolRoundsExceeded,
+                    new OnMaxToolRoundsExceededEvent(
+                        $conversation,
+                        $options,
+                        $toolRounds,
+                        $this->maxToolRounds,
+                    ),
+                );
+
                 return new AgentTurnResult(
                     null,
                     false,
@@ -50,16 +90,31 @@ class Agent
                 );
             }
 
+            $toolCalls = $assistant->toolCalls ?? [];
+
+            $this->hooks->dispatch(
+                AgentHookEvent::BeforeToolRound,
+                new BeforeToolRoundEvent($conversation, $response, $assistant, $toolCalls, $toolRounds),
+            );
+
             $conversation->addMessage(
                 $response->toStoredMessage($options, $response->duration ?? 0.0) ?? $assistant,
             );
 
-            foreach ($this->tools->executeAll($assistant->toolCalls ?? []) as $toolMessage) {
+            $toolMessages = [];
+            foreach ($toolCalls as $call) {
+                $toolMessage = $this->executeToolCall($call, $toolRounds);
                 $conversation->addMessage($toolMessage);
+                $toolMessages[] = $toolMessage;
             }
 
+            $this->hooks->dispatch(
+                AgentHookEvent::AfterToolRound,
+                new AfterToolRoundEvent($conversation, $toolMessages, $toolRounds),
+            );
+
             $toolRounds++;
-            $response = $this->llm->chatCompletion($conversation, $options);
+            $response = $this->callLlm($conversation, $options, $toolRounds);
         }
 
         if ($response->finishReason() === 'stop') {
@@ -86,5 +141,47 @@ class Agent
             "Unexpected finish reason: {$reason}.",
             $toolRounds,
         );
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function callLlm(
+        Conversation $conversation,
+        ChatCompletionOptions $options,
+        int $toolRound,
+    ): ChatCompletionResponse {
+        $this->hooks->dispatch(
+            AgentHookEvent::BeforeLlmCall,
+            new BeforeLlmCallEvent($conversation, $options, $toolRound),
+        );
+
+        $response = $this->llm->chatCompletion($conversation, $options);
+
+        $this->hooks->dispatch(
+            AgentHookEvent::AfterLlmCall,
+            new AfterLlmCallEvent($conversation, $options, $toolRound, $response),
+        );
+
+        return $response;
+    }
+
+    private function executeToolCall(ToolCall $call, int $toolRound): Message
+    {
+        $event = new BeforeToolCallEvent($call, $toolRound);
+        $this->hooks->dispatch(AgentHookEvent::BeforeToolCall, $event);
+
+        if ($event->replacement !== null) {
+            $toolMessage = $event->replacement;
+        } else {
+            $toolMessage = $this->tools->execute($call);
+        }
+
+        $this->hooks->dispatch(
+            AgentHookEvent::AfterToolCall,
+            new AfterToolCallEvent($call, $toolMessage, $toolRound),
+        );
+
+        return $toolMessage;
     }
 }

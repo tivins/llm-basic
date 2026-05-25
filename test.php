@@ -3,8 +3,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Agent;
+use Tivins\LlmBasic\AgentHooks;
 use Tivins\LlmBasic\ChatCompletionOptions;
 use Tivins\LlmBasic\Conversation;
+use Tivins\LlmBasic\Hooks\BeforeToolCallEvent;
 use Tivins\LlmBasic\LLM;
 use Tivins\LlmBasic\Message;
 use Tivins\LlmBasic\Role;
@@ -123,7 +125,11 @@ try {
 
     $llm = new LLM('http://127.0.0.1:8080');
     $options = new ChatCompletionOptions();
-    $agent = new Agent($llm, $tools, maxToolRounds: 20, workspace: $workspace);
+    $hooks = new AgentHooks();
+    $hooks->beforeToolCall(function (BeforeToolCallEvent $event) {
+        echo "Tool : " . $event->call->name . PHP_EOL;
+    });
+    $agent = new Agent($llm, $tools, maxToolRounds: 20, workspace: $workspace, hooks: $hooks);
     $conversation = new Conversation([
         Message::withCreatedAt(Role::System, 'You are a helpful assistant. Use tools when needed.'),
     ], $logger);

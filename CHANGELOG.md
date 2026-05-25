@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.0 — 2026-05-25
+
+### Added
+
+- `AgentHooks` — registry of lifecycle listeners for agent turns (`beforeTurn`, `afterTurn`, `beforeLlmCall`, `afterLlmCall`, `beforeToolRound`, `afterToolRound`, `beforeToolCall`, `afterToolCall`, `onMaxToolRoundsExceeded`).
+- `AgentHookEvent` enum and typed hook payload classes under `src/Hooks/`.
+- `BeforeToolCallEvent::$replacement` — skip the real tool handler and inject a custom tool message.
+- Smoke tests for hook ordering, tool-call replacement, and max tool rounds.
+
+### Changed
+
+- `Agent` accepts an optional `AgentHooks` dependency (defaults to an empty registry).
+
 ## 0.13.0 — 2026-05-25
 
 ### Added
