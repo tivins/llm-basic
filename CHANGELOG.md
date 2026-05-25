@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0 — 2026-05-25
+
+### Added
+
+- `Invoke` — client for Invoke Community Edition text-to-image API (`listModels`, `fetchModel`, `enqueueTextToImage`, `waitForBatchImage`, `textToImage`, `imageUrl`).
+
 ## 0.14.1 — 2026-05-25
 
 ### Changed
