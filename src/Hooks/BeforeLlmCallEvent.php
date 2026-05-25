@@ -7,11 +7,11 @@ namespace Tivins\LlmBasic\Hooks;
 use Tivins\LlmBasic\ChatCompletionOptions;
 use Tivins\LlmBasic\Conversation;
 
-final class BeforeLlmCallEvent
+final readonly class BeforeLlmCallEvent
 {
     public function __construct(
-        public readonly Conversation $conversation,
-        public readonly ChatCompletionOptions $options,
-        public readonly int $toolRound,
+        public Conversation          $conversation,
+        public ChatCompletionOptions $options,
+        public int                   $toolRound,
     ) {}
 }

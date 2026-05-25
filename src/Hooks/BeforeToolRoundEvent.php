@@ -9,16 +9,16 @@ use Tivins\LlmBasic\Conversation;
 use Tivins\LlmBasic\Message;
 use Tivins\LlmBasic\ToolCall;
 
-final class BeforeToolRoundEvent
+final readonly class BeforeToolRoundEvent
 {
     /**
      * @param ToolCall[] $toolCalls
      */
     public function __construct(
-        public readonly Conversation $conversation,
-        public readonly ChatCompletionResponse $response,
-        public readonly Message $assistantMessage,
-        public readonly array $toolCalls,
-        public readonly int $toolRound,
+        public Conversation           $conversation,
+        public ChatCompletionResponse $response,
+        public Message                $assistantMessage,
+        public array                  $toolCalls,
+        public int                    $toolRound,
     ) {}
 }

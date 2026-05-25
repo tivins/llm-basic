@@ -7,11 +7,11 @@ namespace Tivins\LlmBasic\Hooks;
 use Tivins\LlmBasic\Message;
 use Tivins\LlmBasic\ToolCall;
 
-final class AfterToolCallEvent
+final readonly class AfterToolCallEvent
 {
     public function __construct(
-        public readonly ToolCall $call,
-        public readonly Message $toolMessage,
-        public readonly int $toolRound,
+        public ToolCall $call,
+        public Message  $toolMessage,
+        public int      $toolRound,
     ) {}
 }

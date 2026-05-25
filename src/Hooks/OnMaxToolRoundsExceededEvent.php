@@ -7,12 +7,12 @@ namespace Tivins\LlmBasic\Hooks;
 use Tivins\LlmBasic\ChatCompletionOptions;
 use Tivins\LlmBasic\Conversation;
 
-final class OnMaxToolRoundsExceededEvent
+final readonly class OnMaxToolRoundsExceededEvent
 {
     public function __construct(
-        public readonly Conversation $conversation,
-        public readonly ChatCompletionOptions $options,
-        public readonly int $toolRounds,
-        public readonly int $maxToolRounds,
+        public Conversation          $conversation,
+        public ChatCompletionOptions $options,
+        public int                   $toolRounds,
+        public int                   $maxToolRounds,
     ) {}
 }

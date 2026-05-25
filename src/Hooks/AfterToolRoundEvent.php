@@ -7,14 +7,14 @@ namespace Tivins\LlmBasic\Hooks;
 use Tivins\LlmBasic\Conversation;
 use Tivins\LlmBasic\Message;
 
-final class AfterToolRoundEvent
+final readonly class AfterToolRoundEvent
 {
     /**
      * @param Message[] $toolMessages
      */
     public function __construct(
-        public readonly Conversation $conversation,
-        public readonly array $toolMessages,
-        public readonly int $toolRound,
+        public Conversation $conversation,
+        public array        $toolMessages,
+        public int          $toolRound,
     ) {}
 }
