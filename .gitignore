@@ -5,3 +5,5 @@
 vendor/
 logs/
 image.png
+tmp/
+var/

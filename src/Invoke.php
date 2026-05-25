@@ -87,6 +87,7 @@ class Invoke
         int $height = 1024,
         float $cfgScale = 7.5,
         string $scheduler = 'euler',
+        ?int $seed = null,
     ): array {
         $isSdxl = ($model['base'] ?? '') === 'sdxl';
         $modelRef = [
@@ -118,7 +119,7 @@ class Invoke
             'noise' => [
                 'type' => 'noise',
                 'id' => 'noise',
-                'seed' => random_int(0, 4294967295),
+                'seed' => $seed ?? random_int(0, 4294967295),
                 'width' => $width,
                 'height' => $height,
                 'use_cpu' => false,
@@ -235,9 +236,10 @@ class Invoke
         ?string $modelName = null,
         float $cfgScale = 7.5,
         string $scheduler = 'euler',
+        ?int $seed = null,
     ): array {
         $model = $this->fetchModel($modelName);
-        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler);
+        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler, $seed);
 
         return [
             'batch_id' => $enqueued['batch_id'],

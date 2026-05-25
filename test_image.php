@@ -18,16 +18,18 @@ $width = 768;
 $height = 1024;
 $cfg_scale = 5;
 $scheduler = 'dpmpp_2m_k';//dpmpp_2m_sde_k
+$seed = 42;
 
 try {
     $invoke = new Invoke();
 
     /*
+    var_dump($invoke->listModels());
     var_dump($invoke->listSchedulers());
     exit;
     */
 
-    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler);
+    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler, $seed);
     $image = $result['image'];
 
     echo "batch_id: {$result['batch_id']}\n";
