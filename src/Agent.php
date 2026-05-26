@@ -117,7 +117,11 @@ class Agent
             $response = $this->callLlm($conversation, $options, $toolRounds);
         }
 
-        if ($response->finishReason() === 'stop') {
+        $finishReason = $response->finishReason();
+        if (
+            $finishReason === 'stop'
+            || ($finishReason === 'length' && !$response->hasToolCalls())
+        ) {
             $stored = $response->toStoredMessage($options, $response->duration ?? 0.0);
             if ($stored !== null) {
                 $conversation->addMessage($stored);
@@ -128,12 +132,12 @@ class Agent
             return new AgentTurnResult(
                 null,
                 false,
-                'Assistant stop response could not be stored.',
+                'Assistant response could not be stored.',
                 $toolRounds,
             );
         }
 
-        $reason = $response->finishReason() ?? 'unknown';
+        $reason = $finishReason ?? 'unknown';
 
         return new AgentTurnResult(
             null,

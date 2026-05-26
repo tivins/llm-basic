@@ -81,10 +81,10 @@ final class Workspace
      */
     public function readRange(
         string $relative,
-        int $offset = 1,
+        ?int $offset = null,
         int $limit = self::DEFAULT_READ_RANGE_LIMIT,
     ): array {
-        if ($offset < 1) {
+        if ($offset !== null && $offset < 1) {
             throw new WorkspaceException('offset must be at least 1.');
         }
 
@@ -97,7 +97,7 @@ final class Workspace
             return [
                 'file' => $this->displayPath($relative),
                 'content' => '',
-                'start_line' => $offset,
+                'start_line' => 1,
                 'end_line' => 0,
                 'total_lines' => 0,
                 'truncated' => false,
@@ -115,6 +115,10 @@ final class Workspace
 
         $totalLines = count($lines);
 
+        if ($offset === null) {
+            $offset = max(1, $totalLines - $limit + 1);
+        }
+
         if ($offset > $totalLines) {
             return [
                 'file' => $this->displayPath($relative),
@@ -129,7 +133,7 @@ final class Workspace
         $selected = array_slice($lines, $offset - 1, $limit);
         $sliceContent = implode("\n", $selected);
         $endLine = $offset + count($selected) - 1;
-        $truncated = $endLine < $totalLines;
+        $truncated = $offset > 1 || $endLine < $totalLines;
 
         if (strlen($sliceContent) > self::MAX_READ_BYTES) {
             throw new WorkspaceException(

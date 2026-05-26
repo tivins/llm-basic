@@ -19,7 +19,7 @@ class ReadFileRangeTool extends Tool
         parent::__construct(
             new ToolSchema(
                 'read_file_range',
-                'Read a line range from a file in the workspace.',
+                'Read a line range from a file in the workspace. Omit offset to read the last lines (tail mode).',
                 [
                     'type' => 'object',
                     'properties' => [
@@ -29,7 +29,7 @@ class ReadFileRangeTool extends Tool
                         ],
                         'offset' => [
                             'type' => 'integer',
-                            'description' => '1-based starting line number. Defaults to 1.',
+                            'description' => '1-based starting line number. When omitted, returns the last `limit` lines (tail mode).',
                         ],
                         'limit' => [
                             'type' => 'integer',
@@ -42,7 +42,7 @@ class ReadFileRangeTool extends Tool
             function (string $argumentsJson): string {
                 $args = json_decode($argumentsJson, true) ?? [];
                 $file = isset($args['file']) ? (string) $args['file'] : '';
-                $offset = isset($args['offset']) ? (int) $args['offset'] : 1;
+                $offset = array_key_exists('offset', $args) ? (int) $args['offset'] : null;
                 $limit = isset($args['limit']) ? (int) $args['limit'] : self::DEFAULT_LIMIT;
 
                 if ($file === '') {

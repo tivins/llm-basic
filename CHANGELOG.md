@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.19.2 — 2026-05-27
+
+### Fixed
+
+- `Agent` — treat `finish_reason: length` as success when the response has no pending tool calls (partial text summary).
+- `WriterSkill::isArticleComplete()` — count top-level `##` article headings instead of numbered `## N.` headings.
+- `WriterSkill` — continue step uses `read_file_range` tail with `limit=40` and instructs the model to stop after `append_file`.
+- `examples/04_writer.php` — cap continue-step tool rounds at 4 to discourage multi-section turns.
+
+## 0.19.1 — 2026-05-27
+
+### Removed
+
+- `Agent::$maxCallsPerToolPerTurn` — removed after writer runs showed it blocked legitimate multi-round tool use within a single continue step (first `append_file` consumed the quota, then retries failed with a confusing error).
+
+### Fixed
+
+- `WriterSkill` — continue-step prompt now asks for one missing section per step without implying a hard per-turn tool cap.
+
+## 0.19.0 — 2026-05-27
+
+### Added
+
+- `WriterSkill::isArticleComplete()` — compare numbered plan sections (`### N.`) with article headings (`## N.`) to detect a finished article.
+
+### Changed
+
+- `read_file_range` / `Workspace::readRange()` — when `offset` is omitted, return the last `limit` lines (tail mode) instead of starting at line 1.
+- `WriterSkill` — prompt and continue query mention tail mode.
+- `examples/04_writer.php` — stop the loop early when the article matches the plan.
+
 ## 0.18.0 — 2026-05-27
 
 ### Added

@@ -199,4 +199,14 @@ assertTrue(!$maxResult->success, 'max tool rounds fails turn');
 assertTrue($maxResult->toolRounds === 2, 'max tool rounds count');
 assertTrue($maxEvents === ['max'], 'onMaxToolRoundsExceeded fires');
 
+$lengthResponse = makeResponse(
+    new Message(Role::Assistant, 'partial summary'),
+    'length',
+);
+$lengthAgent = new Agent(new StubLLM([$lengthResponse]), $tools);
+$lengthResult = $lengthAgent->runTurn(new Conversation([]), new ChatCompletionOptions());
+
+assertTrue($lengthResult->success, 'length finish without tool calls succeeds');
+assertTrue($lengthResult->message?->content === 'partial summary', 'length finish stores assistant content');
+
 exit($failures === 0 ? 0 : 1);

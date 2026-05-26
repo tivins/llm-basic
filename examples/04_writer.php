@@ -63,7 +63,7 @@ function runStep(
 try {
     date_default_timezone_set('Europe/Paris');
 
-    $workspaceDir = __DIR__ . '/tmp/writer';
+    $workspaceDir = __DIR__ . '/tmp/writer_' . date('YmdHisZ');
     if (!is_dir($workspaceDir)) {
         mkdir($workspaceDir, 0755, true);
     }
@@ -98,8 +98,13 @@ try {
             0.5,
             ['step' => 'continue', 'iteration' => $i + 1] + $baseParams,
             'continue-' . ($i + 1),
-            maxToolRounds: 8,
+            maxToolRounds: 4,
         );
+
+        if ($skill->isArticleComplete($workspace, $planFile, $articleFile)) {
+            echo "Article complete after continue-" . ($i + 1) . ".\n";
+            break;
+        }
     }
 
     echo "Output directory: {$workspaceDir}\n";

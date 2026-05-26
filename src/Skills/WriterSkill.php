@@ -4,6 +4,8 @@ namespace Tivins\LlmBasic\Skills;
 
 use Exception;
 use Tivins\LlmBasic\Skill;
+use Tivins\LlmBasic\Workspace;
+use Tivins\LlmBasic\WorkspaceException;
 
 /**
  * Ex:
@@ -33,7 +35,8 @@ Rules:
 - Keep each tool call small: at most one plan section or one article section per call (~400 words of new content max).
 - Plan step: write ONLY the plan file, then stop with a brief summary. Do NOT read or write the article in this step.
 - Start step: read the plan, then create the article file with write_file containing ONLY the first section from the plan.
-- Continue step: read the plan and the end of the article (read_file_range), then append ONLY the next section with append_file.
+- Continue step: read the plan, then read the article tail with read_file_range (omit offset, limit=40), append ONLY the next missing section with append_file, then reply with a summary — no further tool calls after append_file.
+- Do not append multiple plan sections in one continue step.
 - NEVER rewrite an existing article with write_file. Use append_file to extend it.
 - If a tool fails, fix the issue and retry with a smaller chunk — do not fall back to rewriting the whole file.
 - End each turn with a brief summary (1–2 sentences): what you wrote and what remains.
@@ -109,8 +112,31 @@ step: continue
 plan_file: {$planFile}
 article_file: {$articleFile}{$suffix}
 
-Read "{$planFile}" and the end of "{$articleFile}" (read_file_range), then append ONLY the next section with append_file.
-Do not overwrite existing content. One section per tool call.
+Read "{$planFile}", then read the end of "{$articleFile}" with read_file_range (omit offset, limit=40), then append ONLY the next section with append_file.
+After append_file succeeds, respond with a brief summary — do not call any more tools in this turn.
+Do not overwrite existing content. One section per turn; if all plan sections are already present, say so and stop.
 TXT;
+    }
+
+    public function isArticleComplete(Workspace $workspace, string $planFile, string $articleFile): bool
+    {
+        try {
+            $planContent = $workspace->read($planFile);
+            $articleContent = $workspace->read($articleFile);
+        } catch (WorkspaceException) {
+            return false;
+        }
+
+        $planSections = $this->countNumberedSections($planContent, '/^### \d+\./m');
+        $articleSections = $this->countNumberedSections($articleContent, '/^## /m');
+
+        return $planSections > 0 && $articleSections >= $planSections;
+    }
+
+    private function countNumberedSections(string $content, string $pattern): int
+    {
+        $count = preg_match_all($pattern, $content);
+
+        return $count === false ? 0 : $count;
     }
 }

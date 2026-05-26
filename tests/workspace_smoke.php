@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
+use Tivins\LlmBasic\Skills\WriterSkill;
 use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\ReadFileRangeTool;
@@ -130,8 +131,29 @@ assertTrue($rangeResult['content'] === "line 3\nline 4\nline 5\nline 6", 'readRa
 assertTrue($rangeResult['truncated'] === true, 'readRange truncated when more lines remain');
 
 $rangeTail = $workspace->readRange($rangeFile, offset: 9, limit: 10);
-assertTrue($rangeTail['truncated'] === false, 'readRange not truncated at end');
+assertTrue($rangeTail['truncated'] === true, 'readRange truncated when offset skips earlier lines');
 assertTrue($rangeTail['content'] === "line 9\nline 10", 'readRange tail content');
+
+$tailDefault = $workspace->readRange($rangeFile);
+assertTrue($tailDefault['start_line'] === 1, 'readRange tail default start_line for short file');
+assertTrue($tailDefault['end_line'] === 10, 'readRange tail default end_line for short file');
+assertTrue($tailDefault['truncated'] === false, 'readRange tail default not truncated for short file');
+
+$longRangeFile = 'tests/_tmp/smoke-range-long.txt';
+$longRangeLines = [];
+for ($i = 1; $i <= 250; $i++) {
+    $longRangeLines[] = "line {$i}";
+}
+$workspace->write($longRangeFile, implode("\n", $longRangeLines) . "\n");
+
+$longTail = $workspace->readRange($longRangeFile);
+assertTrue($longTail['start_line'] === 51, 'readRange tail default start_line for long file');
+assertTrue($longTail['end_line'] === 250, 'readRange tail default end_line for long file');
+assertTrue($longTail['truncated'] === true, 'readRange tail default truncated for long file');
+assertTrue(
+    $longTail['content'] === implode("\n", array_slice($longRangeLines, 50)),
+    'readRange tail default content for long file',
+);
 
 $emptyRangeFile = 'tests/_tmp/smoke-range-empty.txt';
 $workspace->write($emptyRangeFile, '');
@@ -157,6 +179,16 @@ assertTrue(
     && ($rangeToolDecoded['content'] ?? '') === "line 2\nline 3"
     && !isset($rangeToolDecoded['error']),
     'ReadFileRangeTool success JSON',
+);
+
+$rangeTailToolJson = ($readFileRangeTool->handler)(json_encode(['file' => $longRangeFile]));
+$rangeTailToolDecoded = json_decode($rangeTailToolJson, true);
+assertTrue(
+    is_array($rangeTailToolDecoded)
+    && ($rangeTailToolDecoded['start_line'] ?? 0) === 51
+    && ($rangeTailToolDecoded['truncated'] ?? false) === true
+    && !isset($rangeTailToolDecoded['error']),
+    'ReadFileRangeTool tail mode JSON',
 );
 
 $rangeTraversalJson = ($readFileRangeTool->handler)(json_encode([
@@ -539,8 +571,32 @@ assertTrue(
     'ApplyDiffTool JSON error for traversal',
 );
 
+$writerSkill = new WriterSkill();
+$writerPlanFile = 'tests/_tmp/writer-plan.md';
+$writerArticleFile = 'tests/_tmp/writer-article.md';
+$workspace->write($writerPlanFile, "### 1. Intro\n### 2. Body\n");
+$workspace->write($writerArticleFile, "## 1. Intro\n");
+assertTrue(
+    !$writerSkill->isArticleComplete($workspace, $writerPlanFile, $writerArticleFile),
+    'WriterSkill article incomplete with missing sections',
+);
+$workspace->append($writerArticleFile, "## 2. Body\n");
+assertTrue(
+    $writerSkill->isArticleComplete($workspace, $writerPlanFile, $writerArticleFile),
+    'WriterSkill article complete when all plan sections exist',
+);
+
+$writerPlanFile2 = 'tests/_tmp/writer-plan-titles.md';
+$writerArticleFile2 = 'tests/_tmp/writer-article-titles.md';
+$workspace->write($writerPlanFile2, "### 1. Intro\n### 2. Body\n");
+$workspace->write($writerArticleFile2, "## Introduction\n## Conclusion\n");
+assertTrue(
+    $writerSkill->isArticleComplete($workspace, $writerPlanFile2, $writerArticleFile2),
+    'WriterSkill article complete with unnumbered section headings',
+);
+
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $grepSample, $diffFile] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $longRangeFile, $grepSample, $diffFile, $writerPlanFile, $writerArticleFile, $writerPlanFile2, $writerArticleFile2] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {
