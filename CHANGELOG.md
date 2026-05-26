@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.3 — 2026-05-27
+
+### Added
+
+- `WriterSkill::articleProgress()` — compute plan/article section counts and the next expected plan section title.
+- `WriterSkill` — continue/start queries accept `progress` and `last_step_summary` hints (verify against files).
+- `examples/04_writer.php` — pass computed progress and the previous step summary between turns; append step summaries to `writer_journal.md`.
+
 ## 0.19.2 — 2026-05-27
 
 ### Fixed

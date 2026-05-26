@@ -36,6 +36,7 @@ Rules:
 - Plan step: write ONLY the plan file, then stop with a brief summary. Do NOT read or write the article in this step.
 - Start step: read the plan, then create the article file with write_file containing ONLY the first section from the plan.
 - Continue step: read the plan, then read the article tail with read_file_range (omit offset, limit=40), append ONLY the next missing section with append_file, then reply with a summary — no further tool calls after append_file.
+- When progress or previous_step_reported appear in the user message, treat them as hints only — always verify against the files before writing.
 - Do not append multiple plan sections in one continue step.
 - NEVER rewrite an existing article with write_file. Use append_file to extend it.
 - If a tool fails, fix the issue and retry with a smaller chunk — do not fall back to rewriting the whole file.
@@ -60,7 +61,7 @@ TXT,
 
         return match ($step) {
             'plan' => $this->formatPlanQuery($parameters, $planFile),
-            'start' => $this->formatStartQuery($planFile, $articleFile),
+            'start' => $this->formatStartQuery($planFile, $articleFile, $parameters),
             'continue' => $this->formatContinueQuery($planFile, $articleFile, $parameters),
             default => throw new Exception("Invalid step: {$step} (expected plan, start, or continue)"),
         };
@@ -87,13 +88,15 @@ Do NOT write the article in this step — only the plan file, then summarize.
 TXT;
     }
 
-    private function formatStartQuery(string $planFile, string $articleFile): string
+    private function formatStartQuery(string $planFile, string $articleFile, array $parameters): string
     {
+        $contextBlock = $this->formatStepContext($parameters);
+
         return <<<TXT
 step: start
 plan_file: {$planFile}
 article_file: {$articleFile}
-
+{$contextBlock}
 Read "{$planFile}" and write ONLY the first section of the article in "{$articleFile}" (create with write_file).
 Do not write multiple sections in one tool call.
 TXT;
@@ -106,31 +109,110 @@ TXT;
     {
         $iteration = $parameters['iteration'] ?? null;
         $suffix = $iteration !== null ? "\niteration: {$iteration}" : '';
+        $contextBlock = $this->formatStepContext($parameters);
 
         return <<<TXT
 step: continue
 plan_file: {$planFile}
 article_file: {$articleFile}{$suffix}
-
+{$contextBlock}
 Read "{$planFile}", then read the end of "{$articleFile}" with read_file_range (omit offset, limit=40), then append ONLY the next section with append_file.
 After append_file succeeds, respond with a brief summary — do not call any more tools in this turn.
 Do not overwrite existing content. One section per turn; if all plan sections are already present, say so and stop.
 TXT;
     }
 
-    public function isArticleComplete(Workspace $workspace, string $planFile, string $articleFile): bool
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    private function formatStepContext(array $parameters): string
+    {
+        $lines = [];
+
+        if (isset($parameters['progress']) && is_array($parameters['progress'])) {
+            /** @var array<string, mixed> $progress */
+            $progress = $parameters['progress'];
+            $planSections = (int) ($progress['plan_sections'] ?? 0);
+            $articleSections = (int) ($progress['article_sections'] ?? 0);
+            $lines[] = "progress: {$articleSections}/{$planSections} plan sections written in the article.";
+
+            $nextPlanSection = $progress['next_plan_section'] ?? null;
+            if (is_string($nextPlanSection) && $nextPlanSection !== '') {
+                $nextNumber = $articleSections + 1;
+                $lines[] = "next_plan_section: \"### {$nextNumber}. {$nextPlanSection}\" (hint — verify against files).";
+            } elseif ($progress['complete'] ?? false) {
+                $lines[] = 'progress_note: all plan sections appear present — verify and stop if complete.';
+            }
+        }
+
+        $lastSummary = $parameters['last_step_summary'] ?? null;
+        if (is_string($lastSummary) && trim($lastSummary) !== '') {
+            $lines[] = 'previous_step_reported: "' . $this->collapseForPrompt($lastSummary) . '" (hint only — verify against files).';
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * @return array{plan_sections: int, article_sections: int, complete: bool, next_plan_section: ?string}|null
+     */
+    public function articleProgress(Workspace $workspace, string $planFile, string $articleFile): ?array
     {
         try {
             $planContent = $workspace->read($planFile);
             $articleContent = $workspace->read($articleFile);
         } catch (WorkspaceException) {
-            return false;
+            return null;
         }
 
         $planSections = $this->countNumberedSections($planContent, '/^### \d+\./m');
         $articleSections = $this->countNumberedSections($articleContent, '/^## /m');
+        $nextPlanSection = null;
+        if ($planSections > $articleSections) {
+            $nextPlanSection = $this->extractPlanSectionTitle($planContent, $articleSections + 1);
+        }
 
-        return $planSections > 0 && $articleSections >= $planSections;
+        return [
+            'plan_sections' => $planSections,
+            'article_sections' => $articleSections,
+            'complete' => $planSections > 0 && $articleSections >= $planSections,
+            'next_plan_section' => $nextPlanSection,
+        ];
+    }
+
+    public function isArticleComplete(Workspace $workspace, string $planFile, string $articleFile): bool
+    {
+        $progress = $this->articleProgress($workspace, $planFile, $articleFile);
+
+        return $progress !== null && $progress['complete'];
+    }
+
+    private function extractPlanSectionTitle(string $planContent, int $sectionNumber): ?string
+    {
+        if (!preg_match('/^### ' . $sectionNumber . '\. (.+)$/m', $planContent, $matches)) {
+            return null;
+        }
+
+        return trim($matches[1]);
+    }
+
+    private function collapseForPrompt(string $text): string
+    {
+        $collapsed = preg_replace('/\s+/', ' ', trim($text));
+
+        if (!is_string($collapsed)) {
+            return trim($text);
+        }
+
+        if (strlen($collapsed) <= 500) {
+            return $collapsed;
+        }
+
+        return substr($collapsed, 0, 497) . '...';
     }
 
     private function countNumberedSections(string $content, string $pattern): int

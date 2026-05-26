@@ -595,8 +595,47 @@ assertTrue(
     'WriterSkill article complete with unnumbered section headings',
 );
 
+$writerProgress = $writerSkill->articleProgress($workspace, $writerPlanFile2, $writerArticleFile2);
+assertTrue(
+    is_array($writerProgress)
+    && $writerProgress['plan_sections'] === 2
+    && $writerProgress['article_sections'] === 2
+    && $writerProgress['complete'] === true
+    && $writerProgress['next_plan_section'] === null,
+    'WriterSkill articleProgress reports complete article',
+);
+
+$writerPlanFile3 = 'tests/_tmp/writer-plan-progress.md';
+$writerArticleFile3 = 'tests/_tmp/writer-article-progress.md';
+$workspace->write($writerPlanFile3, "### 1. Intro\n### 2. Body\n### 3. Outro\n");
+$workspace->write($writerArticleFile3, "## 1. Intro\n");
+$writerPartialProgress = $writerSkill->articleProgress($workspace, $writerPlanFile3, $writerArticleFile3);
+assertTrue(
+    is_array($writerPartialProgress)
+    && $writerPartialProgress['plan_sections'] === 3
+    && $writerPartialProgress['article_sections'] === 1
+    && $writerPartialProgress['complete'] === false
+    && $writerPartialProgress['next_plan_section'] === 'Body',
+    'WriterSkill articleProgress reports next plan section',
+);
+
+$continueQuery = $writerSkill->formatQuery([
+    'step' => 'continue',
+    'plan_file' => $writerPlanFile3,
+    'article_file' => $writerArticleFile3,
+    'iteration' => 2,
+    'progress' => $writerPartialProgress,
+    'last_step_summary' => "Wrote section 1.\nNext: Body.",
+]);
+assertTrue(
+    str_contains($continueQuery, 'progress: 1/3 plan sections written in the article.')
+    && str_contains($continueQuery, 'next_plan_section: "### 2. Body"')
+    && str_contains($continueQuery, 'previous_step_reported: "Wrote section 1. Next: Body."'),
+    'WriterSkill continue query includes progress and previous summary hints',
+);
+
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $longRangeFile, $grepSample, $diffFile, $writerPlanFile, $writerArticleFile, $writerPlanFile2, $writerArticleFile2] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $longRangeFile, $grepSample, $diffFile, $writerPlanFile, $writerArticleFile, $writerPlanFile2, $writerArticleFile2, $writerPlanFile3, $writerArticleFile3] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {

@@ -16,6 +16,7 @@ use Tivins\LlmBasic\Tools\ReadFileRangeTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Workspace;
+use Tivins\LlmBasic\WorkspaceException;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -42,7 +43,8 @@ function runStep(
     array $params,
     string $label,
     int $maxToolRounds,
-): void {
+    string $journalFile,
+): string {
     echo "--- {$label} ---\n";
 
     $logger = new Logger($workspace->root() . '/logs/writer-' . date('Y-m-d-H-i-s') . '-' . $label . '.json');
@@ -57,7 +59,25 @@ function runStep(
         throw new RuntimeException($result->error ?? 'Agent turn failed.');
     }
 
-    echo ($result->message?->content ?? '') . "\n";
+    $summary = $result->message?->content ?? '';
+    echo $summary . "\n";
+
+    if ($summary !== '') {
+        appendJournal($workspace, $journalFile, $label, $summary);
+    }
+
+    return $summary;
+}
+
+function appendJournal(Workspace $workspace, string $journalFile, string $label, string $summary): void
+{
+    $entry = sprintf("[%s] %s\n%s\n\n", date('Y-m-d H:i:s'), $label, $summary);
+
+    try {
+        $workspace->append($journalFile, $entry);
+    } catch (WorkspaceException) {
+        $workspace->write($journalFile, $entry);
+    }
 }
 
 try {
@@ -81,24 +101,60 @@ try {
 
     $planFile = 'inference_plan.md';
     $articleFile = 'inference_article.md';
+    $journalFile = 'writer_journal.md';
     $baseParams = [
         'plan_file' => $planFile,
         'article_file' => $articleFile,
     ];
 
-    runStep($skill, $llm, $tools, $workspace, $skill->temperature, ['step' => 'plan', 'topic' => $topic] + $baseParams, 'plan', maxToolRounds: 2);
-    runStep($skill, $llm, $tools, $workspace, 0.5, ['step' => 'start'] + $baseParams, 'start', maxToolRounds: 6);
+    $lastSummary = runStep(
+        $skill,
+        $llm,
+        $tools,
+        $workspace,
+        $skill->temperature,
+        ['step' => 'plan', 'topic' => $topic] + $baseParams,
+        'plan',
+        maxToolRounds: 2,
+        journalFile: $journalFile,
+    );
+
+    $startParams = ['step' => 'start'] + $baseParams;
+    if ($lastSummary !== '') {
+        $startParams['last_step_summary'] = $lastSummary;
+    }
+    $lastSummary = runStep(
+        $skill,
+        $llm,
+        $tools,
+        $workspace,
+        0.5,
+        $startParams,
+        'start',
+        maxToolRounds: 6,
+        journalFile: $journalFile,
+    );
 
     for ($i = 0; $i < $continuations; $i++) {
-        runStep(
+        $continueParams = ['step' => 'continue', 'iteration' => $i + 1] + $baseParams;
+        $progress = $skill->articleProgress($workspace, $planFile, $articleFile);
+        if ($progress !== null) {
+            $continueParams['progress'] = $progress;
+        }
+        if ($lastSummary !== '') {
+            $continueParams['last_step_summary'] = $lastSummary;
+        }
+
+        $lastSummary = runStep(
             $skill,
             $llm,
             $tools,
             $workspace,
             0.5,
-            ['step' => 'continue', 'iteration' => $i + 1] + $baseParams,
+            $continueParams,
             'continue-' . ($i + 1),
             maxToolRounds: 4,
+            journalFile: $journalFile,
         );
 
         if ($skill->isArticleComplete($workspace, $planFile, $articleFile)) {
