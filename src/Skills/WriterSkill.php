@@ -170,7 +170,7 @@ TXT;
         }
 
         $planSections = $this->countNumberedSections($planContent, '/^### \d+\./m');
-        $articleSections = $this->countNumberedSections($articleContent, '/^## /m');
+        $articleSections = $this->countNumberedSections($articleContent, '/^### \d+\./m');
         $nextPlanSection = null;
         if ($planSections > $articleSections) {
             $nextPlanSection = $this->extractPlanSectionTitle($planContent, $articleSections + 1);

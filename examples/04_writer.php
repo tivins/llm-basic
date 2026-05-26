@@ -153,7 +153,7 @@ try {
             0.5,
             $continueParams,
             'continue-' . ($i + 1),
-            maxToolRounds: 4,
+            maxToolRounds: 3,
             journalFile: $journalFile,
         );
 

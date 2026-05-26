@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.4 — 2026-05-27
+
+### Fixed
+
+- `ReadFileRangeTool` — detect and reject parameter keys containing unexpected names (catches malformed args like `"limit=10,offset"` where the model concatenated multiple param names into a single key); return a clear error instead of silently falling back to reading the whole file.
+- `ReadFileRangeTool` — lower `DEFAULT_LIMIT` from 200 to 60 and cap accepted `limit` at 200 to prevent tool responses from blowing the context window.
+- `Message::toChatCompletionArray()` — strip `reasoning_content` from LLM request payloads; reasoning is internal chain-of-thought and must not be re-injected into subsequent calls (it consumed ~1 000–2 000 tokens per round for nothing).
+- `WriterSkill::articleProgress()` — fix article section regex from `/^## /m` to `/^### \d+\./m` to match the actual heading format produced by the model (was always returning 0 sections written).
+- `examples/04_writer.php` — reduce continue-step `maxToolRounds` from 4 to 3 (plan read → tail read → append → done); prevents a superfluous verification read that can overflow the context after a large append.
+
 ## 0.19.3 — 2026-05-27
 
 ### Added
