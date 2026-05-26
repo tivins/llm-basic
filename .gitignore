@@ -7,3 +7,4 @@ logs/
 image.png
 tmp/
 var/
+tests/_tmp/

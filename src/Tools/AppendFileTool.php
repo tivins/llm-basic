@@ -9,27 +9,15 @@ use Tivins\LlmBasic\ToolSchema;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
 
-class ApplyDiffTool extends Tool
+class AppendFileTool extends Tool
 {
     public function __construct(
         private readonly Workspace $workspace,
     ) {
         parent::__construct(
             new ToolSchema(
-                'apply_diff',
-                <<<'DESC'
-Apply a unified diff (output of `diff -u`) to an existing file in the workspace.
-Line endings in both the diff and the file are normalised automatically (LF / CRLF / CR).
-If the diff does not apply cleanly, a precise error is returned showing which hunk failed
-and the exact mismatch (expected vs actual content, with line numbers), so you can correct and retry.
-
-Diff format reminder:
-  @@ -OLD_START,OLD_COUNT +NEW_START,NEW_COUNT @@
-   <context line>
-  -<removed line>
-  +<added line>
-   <context line>
-DESC,
+                'append_file',
+                'Append UTF-8 text to the end of a file in the workspace. Use this to extend an existing file without rewriting it.',
                 [
                     'type' => 'object',
                     'properties' => [
@@ -37,30 +25,31 @@ DESC,
                             'type' => 'string',
                             'description' => 'Path relative to the workspace root.',
                         ],
-                        'diff' => [
+                        'content' => [
                             'type' => 'string',
-                            'description' => 'Unified diff string. Must contain at least one @@ hunk. The --- / +++ header lines are optional. Line endings may be LF or CRLF.',
+                            'description' => 'UTF-8 text to append at the end of the file.',
+                        ],
+                        'create_if_missing' => [
+                            'type' => 'boolean',
+                            'description' => 'When false, fail if the file does not exist.',
                         ],
                     ],
-                    'required' => ['file', 'diff'],
+                    'required' => ['file', 'content'],
                 ],
             ),
             function (string $argumentsJson): string {
                 $args = json_decode($argumentsJson, true) ?? [];
                 $file = isset($args['file']) ? (string) $args['file'] : '';
-                $diff = isset($args['diff']) ? (string) $args['diff'] : '';
+                $content = isset($args['content']) ? (string) $args['content'] : '';
+                $createIfMissing = (bool) ($args['create_if_missing'] ?? true);
 
                 if ($file === '') {
-                    return json_encode(['error' => 'file is required.'], JSON_UNESCAPED_UNICODE);
-                }
-
-                if ($diff === '') {
-                    return json_encode(['error' => 'diff is required.'], JSON_UNESCAPED_UNICODE);
+                    return json_encode(['error' => 'File path is required.'], JSON_UNESCAPED_UNICODE);
                 }
 
                 try {
                     return json_encode(
-                        $this->workspace->applyDiff($file, $diff),
+                        $this->workspace->append($file, $content, $createIfMissing),
                         JSON_UNESCAPED_UNICODE,
                     );
                 } catch (WorkspaceException $e) {

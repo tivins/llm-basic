@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.18.0 — 2026-05-27
+
+### Added
+
+- `AppendFileTool` (`append_file`) — append UTF-8 text to the end of a workspace file without rewriting it.
+- `Workspace::append()` — backing method with size limits and optional create-if-missing.
+
+### Fixed
+
+- `LLM::chatCompletion()` — detect HTTP errors and malformed responses (`error` payload or missing `choices`) and throw a clear exception instead of PHP warnings.
+- `WriterSkill` / `examples/04_writer.php` — constrain each step (plan only, one section per tool call, exact filenames), use `append_file` for continuations, and cap `maxToolRounds` per step to avoid oversized tool-call JSON hitting the model context limit.
+
+## 0.17.0 — 2026-05-27
+
+### Added
+
+- `WriterSkill` — system prompt and step queries (`plan`, `start`, `continue`) for stateless multi-turn article writing with workspace file tools.
+- `examples/04_writer.php` — agent-driven writer demo: fresh conversation per step, files as persistent state (`inference_plan.md`, `inference_article.md`).
+
+## 0.16.0 — 2026-05-26
+
+### Added
+
+- `ApplyDiffTool` (`apply_diff`) — apply a unified diff (`diff -u`) to any workspace file; normalises LF/CRLF/CR in both the diff and the file, restores the original EOL style, and returns a precise per-line mismatch report when a hunk fails.
+- `Workspace::applyDiff()` — backing method that parses `@@ … @@` hunks, handles multi-hunk offsets, and throws `WorkspaceException` with hunk number + line-level diffs on mismatch.
+
 ## 0.15.3 — 2026-05-25
 
 ### Added

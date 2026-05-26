@@ -8,7 +8,9 @@ use Tivins\LlmBasic\Tools\ListDirTool;
 use Tivins\LlmBasic\Tools\ReadFileTool;
 use Tivins\LlmBasic\Tools\ReadFileRangeTool;
 use Tivins\LlmBasic\Tools\ApplyPatchTool;
+use Tivins\LlmBasic\Tools\ApplyDiffTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
+use Tivins\LlmBasic\Tools\AppendFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
@@ -218,6 +220,41 @@ $noOverwriteJson = ($writeFileTool->handler)(json_encode([
 $noOverwriteDecoded = json_decode($noOverwriteJson, true);
 assertTrue(isset($noOverwriteDecoded['error']), 'WriteFileTool overwrite false returns error');
 
+// append_file: extend existing file
+$appendFile = 'tests/_tmp/smoke-append.txt';
+$workspace->write($appendFile, "line one\n");
+$appendResult = $workspace->append($appendFile, "line two\n");
+assertTrue($appendResult['created'] === false, 'append on existing file');
+assertTrue($appendResult['bytes_appended'] === strlen("line two\n"), 'append bytes_appended');
+assertTrue($appendResult['bytes_total'] === strlen("line one\nline two\n"), 'append bytes_total');
+assertTrue($workspace->read($appendFile) === "line one\nline two\n", 'append content');
+
+// append_file: create when missing
+$appendNewFile = 'tests/_tmp/smoke-append-new.txt';
+$appendCreateResult = $workspace->append($appendNewFile, 'first line');
+assertTrue($appendCreateResult['created'] === true, 'append creates missing file');
+assertTrue($workspace->read($appendNewFile) === 'first line', 'append new file content');
+
+// append_file: create_if_missing false on missing file
+assertThrows(
+    fn () => $workspace->append('tests/_tmp/missing-append.txt', 'x', createIfMissing: false),
+    'not found',
+    'append create_if_missing false',
+);
+
+$appendFileTool = new AppendFileTool($workspace);
+$appendToolJson = ($appendFileTool->handler)(json_encode([
+    'file' => $appendFile,
+    'content' => 'line three',
+]));
+$appendToolDecoded = json_decode($appendToolJson, true);
+assertTrue(
+    is_array($appendToolDecoded)
+    && ($appendToolDecoded['bytes_appended'] ?? 0) === strlen('line three')
+    && !isset($appendToolDecoded['error']),
+    'AppendFileTool returns success JSON',
+);
+
 // apply_patch
 $patchFile = 'tests/_tmp/smoke-patch.txt';
 $workspace->write($patchFile, "line one\nline two\nline two\n");
@@ -373,8 +410,137 @@ assertTrue(
     'GrepTool JSON error when pattern missing',
 );
 
+// apply_diff — happy path: single hunk, LF content
+$diffFile = 'tests/_tmp/smoke-diff.txt';
+$workspace->write($diffFile, "alpha\nbeta\ngamma\n");
+
+$diff1 = <<<'DIFF'
+@@ -1,3 +1,3 @@
+ alpha
+-beta
++BETA
+ gamma
+DIFF;
+
+$diffResult = $workspace->applyDiff($diffFile, $diff1);
+assertTrue($diffResult['hunks_applied'] === 1, 'applyDiff single hunk count');
+assertTrue($workspace->read($diffFile) === "alpha\nBETA\ngamma\n", 'applyDiff content updated');
+
+// apply_diff — multi-hunk
+$workspace->write($diffFile, "one\ntwo\nthree\nfour\nfive\n");
+
+$diff2 = <<<'DIFF'
+@@ -1,2 +1,2 @@
+-one
++ONE
+ two
+@@ -4,2 +4,2 @@
+ four
+-five
++FIVE
+DIFF;
+
+$diffResult2 = $workspace->applyDiff($diffFile, $diff2);
+assertTrue($diffResult2['hunks_applied'] === 2, 'applyDiff multi-hunk count');
+assertTrue(
+    $workspace->read($diffFile) === "ONE\ntwo\nthree\nfour\nFIVE\n",
+    'applyDiff multi-hunk content',
+);
+
+// apply_diff — CRLF file, LF diff (line-ending preservation)
+$workspace->write($diffFile, "line1\r\nline2\r\nline3\r\n");
+$diff3 = "@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n";
+$workspace->applyDiff($diffFile, $diff3);
+assertTrue(
+    $workspace->read($diffFile) === "line1\r\nLINE2\r\nline3\r\n",
+    'applyDiff preserves CRLF line endings',
+);
+
+// apply_diff — CRLF diff on LF file (diff normalisation)
+$workspace->write($diffFile, "hello\nworld\n");
+$diffCrlf = "@@ -1,2 +1,2 @@\r\n hello\r\n-world\r\n+WORLD\r\n";
+$workspace->applyDiff($diffFile, $diffCrlf);
+assertTrue(
+    $workspace->read($diffFile) === "hello\nWORLD\n",
+    'applyDiff CRLF diff normalised correctly',
+);
+
+// apply_diff — diff with --- / +++ header lines (optional, must be ignored)
+$workspace->write($diffFile, "foo\nbar\n");
+$diffWithHeader = <<<'DIFF'
+--- a/file.txt
++++ b/file.txt
+@@ -1,2 +1,2 @@
+-foo
++FOO
+ bar
+DIFF;
+$workspace->applyDiff($diffFile, $diffWithHeader);
+assertTrue($workspace->read($diffFile) === "FOO\nbar\n", 'applyDiff ignores --- / +++ header lines');
+
+// apply_diff — context mismatch returns precise error
+$workspace->write($diffFile, "a\nb\nc\n");
+$badDiff = "@@ -1,2 +1,2 @@\n-WRONG\n+x\n b\n";
+assertThrows(
+    fn () => $workspace->applyDiff($diffFile, $badDiff),
+    'does not apply',
+    'applyDiff context mismatch gives error',
+);
+
+// apply_diff — no hunks in diff
+assertThrows(
+    fn () => $workspace->applyDiff($diffFile, "--- a/file\n+++ b/file\n"),
+    'No hunks found',
+    'applyDiff no hunks throws',
+);
+
+// apply_diff — invalid hunk header
+assertThrows(
+    fn () => $workspace->applyDiff($diffFile, "@@ broken header @@\n-a\n+b\n"),
+    'Invalid hunk header',
+    'applyDiff invalid hunk header throws',
+);
+
+// ApplyDiffTool — JSON happy path
+$workspace->write($diffFile, "x\ny\n");
+$applyDiffTool = new ApplyDiffTool($workspace);
+$diffToolJson = ($applyDiffTool->handler)(json_encode([
+    'file' => $diffFile,
+    'diff' => "@@ -1,2 +1,2 @@\n x\n-y\n+Y\n",
+]));
+$diffToolDecoded = json_decode($diffToolJson, true);
+assertTrue(
+    is_array($diffToolDecoded)
+    && ($diffToolDecoded['hunks_applied'] ?? 0) === 1
+    && !isset($diffToolDecoded['error']),
+    'ApplyDiffTool success JSON',
+);
+
+// ApplyDiffTool — mismatch returns JSON error (not exception)
+$workspace->write($diffFile, "x\ny\n");
+$diffToolErrorJson = ($applyDiffTool->handler)(json_encode([
+    'file' => $diffFile,
+    'diff' => "@@ -1,1 +1,1 @@\n-WRONG\n+Y\n",
+]));
+$diffToolErrorDecoded = json_decode($diffToolErrorJson, true);
+assertTrue(
+    isset($diffToolErrorDecoded['error'])
+    && str_contains($diffToolErrorDecoded['error'], 'does not apply'),
+    'ApplyDiffTool mismatch returns JSON error with details',
+);
+
+// ApplyDiffTool — traversal blocked
+$diffTraversalJson = ($applyDiffTool->handler)(json_encode([
+    'file' => '../../../etc/passwd',
+    'diff' => "@@ -1,1 +1,1 @@\n-root\n+evil\n",
+]));
+assertTrue(
+    isset(json_decode($diffTraversalJson, true)['error']),
+    'ApplyDiffTool JSON error for traversal',
+);
+
 // cleanup tests/_tmp/
-foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $grepSample] as $relativePath) {
+foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $grepSample, $diffFile] as $relativePath) {
     try {
         $absolute = $workspace->resolve($relativePath);
         if (is_file($absolute)) {

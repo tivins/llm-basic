@@ -259,6 +259,238 @@ final class Workspace
     }
 
     /**
+     * @return array{file: string, bytes_appended: int, bytes_total: int, created: bool}
+     * @throws RandomException
+     */
+    public function append(string $relative, string $content, bool $createIfMissing = true): array
+    {
+        $appendBytes = strlen($content);
+        if ($appendBytes > self::MAX_WRITE_BYTES) {
+            throw new WorkspaceException(
+                sprintf('Content exceeds maximum size of %d bytes.', self::MAX_WRITE_BYTES),
+            );
+        }
+
+        $path = $this->resolveForWrite($relative);
+        $exists = is_file($path);
+
+        if (!$exists && !$createIfMissing) {
+            throw new WorkspaceException("File not found: {$relative}");
+        }
+
+        $existing = '';
+        if ($exists) {
+            $read = file_get_contents($path);
+            if ($read === false) {
+                throw new WorkspaceException("Could not read file: {$relative}");
+            }
+            $existing = $read;
+        }
+
+        $totalBytes = strlen($existing) + $appendBytes;
+        if ($totalBytes > self::MAX_WRITE_BYTES) {
+            throw new WorkspaceException(
+                sprintf('Resulting file would exceed maximum size of %d bytes.', self::MAX_WRITE_BYTES),
+            );
+        }
+
+        $result = $this->write($relative, $existing . $content, createIfMissing: true, overwrite: true);
+
+        return [
+            'file' => $result['file'],
+            'bytes_appended' => $appendBytes,
+            'bytes_total' => $result['bytes_written'],
+            'created' => !$exists,
+        ];
+    }
+
+    /**
+     * Apply a unified diff (output of `diff -u`) to a file.
+     *
+     * Line endings in both the diff and the file are normalised to LF before
+     * processing; the original EOL style of the file is restored afterward.
+     *
+     * @return array{file: string, hunks_applied: int, bytes_written: int}
+     * @throws RandomException
+     */
+    public function applyDiff(string $relative, string $diff): array
+    {
+        $diff = str_replace(["\r\n", "\r"], "\n", $diff);
+
+        $rawContent = $this->read($relative);
+
+        $originalEol = "\n";
+        if (str_contains($rawContent, "\r\n")) {
+            $originalEol = "\r\n";
+        } elseif (str_contains($rawContent, "\r") && !str_contains($rawContent, "\n")) {
+            $originalEol = "\r";
+        }
+
+        $content = str_replace(["\r\n", "\r"], "\n", $rawContent);
+
+        $hunks = $this->parseDiffHunks($diff);
+
+        if ($hunks === []) {
+            throw new WorkspaceException(
+                'No hunks found in diff. The diff must contain at least one @@ … @@ section.',
+            );
+        }
+
+        $endsWithNewline = $content !== '' && str_ends_with($content, "\n");
+        $lines = explode("\n", $content);
+        if ($endsWithNewline && end($lines) === '') {
+            array_pop($lines);
+        }
+
+        $offset = 0;
+        foreach ($hunks as $i => $hunk) {
+            $actualStart = $hunk['old_count'] === 0
+                ? $hunk['old_start'] + $offset
+                : $hunk['old_start'] - 1 + $offset;
+
+            $oldLines = $hunk['old_lines'];
+            $newLines = $hunk['new_lines'];
+
+            $fileSlice = array_slice($lines, $actualStart, count($oldLines));
+
+            if ($fileSlice !== $oldLines) {
+                $errors = [];
+                $maxLen = max(count($fileSlice), count($oldLines));
+                for ($j = 0; $j < $maxLen; $j++) {
+                    $fileLine = $fileSlice[$j] ?? '(end of file)';
+                    $diffLine = $oldLines[$j] ?? '(missing in diff)';
+                    if ($fileLine !== $diffLine) {
+                        $lineNum = $actualStart + $j + 1;
+                        $errors[] = sprintf(
+                            '  line %d: file has %s, diff expects %s',
+                            $lineNum,
+                            json_encode($fileLine, JSON_UNESCAPED_UNICODE),
+                            json_encode($diffLine, JSON_UNESCAPED_UNICODE),
+                        );
+                    }
+                }
+
+                throw new WorkspaceException(
+                    sprintf(
+                        "Hunk %d (at line %d) does not apply — context/remove lines do not match:\n%s",
+                        $i + 1,
+                        $hunk['old_start'],
+                        implode("\n", $errors),
+                    ),
+                );
+            }
+
+            array_splice($lines, $actualStart, count($oldLines), $newLines);
+            $offset += count($newLines) - count($oldLines);
+        }
+
+        $newContent = implode("\n", $lines);
+        if ($endsWithNewline) {
+            $newContent .= "\n";
+        }
+
+        if ($originalEol !== "\n") {
+            $newContent = str_replace("\n", $originalEol, $newContent);
+        }
+
+        $writeResult = $this->write($relative, $newContent, createIfMissing: false, overwrite: true);
+
+        return [
+            'file' => $writeResult['file'],
+            'hunks_applied' => count($hunks),
+            'bytes_written' => $writeResult['bytes_written'],
+        ];
+    }
+
+    /**
+     * @return list<array{
+     *   old_start: int,
+     *   old_count: int,
+     *   new_start: int,
+     *   new_count: int,
+     *   old_lines: list<string>,
+     *   new_lines: list<string>,
+     * }>
+     */
+    private function parseDiffHunks(string $diff): array
+    {
+        $lines = explode("\n", $diff);
+        $hunks = [];
+        $current = null;
+        $lastType = null;
+
+        foreach ($lines as $line) {
+            if (str_starts_with($line, '@@')) {
+                if ($current !== null) {
+                    $hunks[] = $current;
+                }
+
+                if (!preg_match('/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/', $line, $m)) {
+                    throw new WorkspaceException("Invalid hunk header: {$line}");
+                }
+
+                $current = [
+                    'old_start' => (int) $m[1],
+                    'old_count' => isset($m[2]) ? (int) $m[2] : 1,
+                    'new_start' => (int) $m[3],
+                    'new_count' => isset($m[4]) ? (int) $m[4] : 1,
+                    'old_lines' => [],
+                    'new_lines' => [],
+                ];
+                $lastType = null;
+                continue;
+            }
+
+            if ($current === null) {
+                continue;
+            }
+
+            if (str_starts_with($line, '\\')) {
+                // "\ No newline at end of file" — strip the phantom trailing newline
+                // that was added to the last seen context/remove/add line.
+                if ($lastType === '-' && $current['old_lines'] !== []) {
+                    $last = array_pop($current['old_lines']);
+                    $current['old_lines'][] = rtrim($last, "\n");
+                } elseif ($lastType === '+' && $current['new_lines'] !== []) {
+                    $last = array_pop($current['new_lines']);
+                    $current['new_lines'][] = rtrim($last, "\n");
+                } elseif ($lastType === ' ') {
+                    $last = array_pop($current['old_lines']);
+                    $current['old_lines'][] = rtrim($last, "\n");
+                    $last = array_pop($current['new_lines']);
+                    $current['new_lines'][] = rtrim($last, "\n");
+                }
+                continue;
+            }
+
+            if ($line === '') {
+                continue;
+            }
+
+            $type = $line[0];
+            $text = substr($line, 1);
+
+            if ($type === ' ') {
+                $current['old_lines'][] = $text;
+                $current['new_lines'][] = $text;
+                $lastType = ' ';
+            } elseif ($type === '-') {
+                $current['old_lines'][] = $text;
+                $lastType = '-';
+            } elseif ($type === '+') {
+                $current['new_lines'][] = $text;
+                $lastType = '+';
+            }
+        }
+
+        if ($current !== null) {
+            $hunks[] = $current;
+        }
+
+        return $hunks;
+    }
+
+    /**
      * @return array{file: string, replacements: int, bytes_written: int}
      * @throws RandomException
      */

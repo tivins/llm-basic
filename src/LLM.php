@@ -39,12 +39,32 @@ class LLM
         curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, min(10, $this->timeoutSeconds));
         curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeoutSeconds);
         $response = curl_exec($curl);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
         if ($response === false) {
-            throw new Exception(curl_error($curl));
+            $error = curl_error($curl);
+            curl_close($curl);
+            throw new Exception($error);
         }
         curl_close($curl);
 
         $data = json_decode($response, true);
+        if (!is_array($data)) {
+            throw new Exception('Invalid JSON response from LLM: ' . substr((string) $response, 0, 500));
+        }
+
+        if ($httpCode >= 400 || isset($data['error'])) {
+            $message = $data['error']['message'] ?? $data['error'] ?? "HTTP {$httpCode}";
+            if (is_array($message)) {
+                $message = json_encode($message, JSON_UNESCAPED_UNICODE);
+            }
+
+            throw new Exception('LLM request failed: ' . (string) $message);
+        }
+
+        if (!isset($data['choices']) || !is_array($data['choices'])) {
+            throw new Exception('LLM response missing choices: ' . substr((string) $response, 0, 500));
+        }
+
         $usage = new Usage(
             $data['usage']['prompt_tokens'] ?? 0,
             $data['usage']['completion_tokens'] ?? 0,
