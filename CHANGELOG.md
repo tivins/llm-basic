@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.5 — 2026-05-27
+
+### Added
+
+- `examples/05_translate_article.php` — chunk-based EN→FR markdown translator for large files.
+  Splits the document at H1–H3 heading boundaries (falling back to paragraph-level splitting
+  for oversized sections) so that every `chatCompletion()` call stays well within
+  `--ctx-size 16384`. Translated chunks are appended to the output file as they are produced,
+  giving real-time progress and allowing partial recovery on interruption.
+
 ## 0.19.4 — 2026-05-27
 
 ### Fixed
