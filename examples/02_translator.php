@@ -22,7 +22,7 @@ if ($prompt === '') {
 }
 try {
     date_default_timezone_set('Europe/Paris');
-    $logger = new Logger(__dir__ . '/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
+    $logger = new Logger(__dir__ . '/../var/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
     $llm = new LLM("http://127.0.0.1:8080", timeoutSeconds: 600);
     $translatorSkill = new TranslatorSkill();
     $options = new ChatCompletionOptions(temperature: $translatorSkill->temperature);

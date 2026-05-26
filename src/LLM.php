@@ -82,4 +82,15 @@ class LLM
             $elapsedMs,
         );
     }
+
+    // Get models list : GET /v1/models
+    // public function listModels(): array
+
+    // Load model : POST /models/load
+    // public function loadModel(string $modelName): void
+
+    // Unload model : POST /models/unload
+    // public function unloadModel(string $modelName): void
+
+    
 }
