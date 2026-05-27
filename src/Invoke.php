@@ -242,7 +242,7 @@ class Invoke
             ],
         ];
 
-        echo json_encode($batch, JSON_UNESCAPED_UNICODE) . PHP_EOL . PHP_EOL;
+        // echo json_encode($batch, JSON_UNESCAPED_UNICODE) . PHP_EOL . PHP_EOL;
         $response = $this->request('POST', '/api/v1/queue/' . $this->queueId . '/enqueue_batch', $batch);
 
         $batchId = $response['batch']['batch_id'] ?? null;
@@ -259,6 +259,7 @@ class Invoke
         return [
             'batch_id' => $batchId,
             'item_id' => $itemId,
+            'batch' => $batch,
         ];
     }
 
@@ -340,6 +341,7 @@ class Invoke
         return [
             'batch_id' => $enqueued['batch_id'],
             'image' => $this->waitForBatchImage($enqueued['batch_id'], $enqueued['item_id']),
+            'batch' => $enqueued['batch']
         ];
     }
 

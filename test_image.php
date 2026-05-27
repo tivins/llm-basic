@@ -38,6 +38,7 @@ try {
     echo "batch_id: {$result['batch_id']}\n";
     echo "image_name: {$image['image_name']}\n";
     echo "image_url: {$invoke->imageUrl($image)}\n";
+    // print_r($result['batch']);
 
     file_put_contents(__DIR__ . '/image.png', file_get_contents($invoke->imageUrl($image)));
     $invoke->deleteImage($image['image_name']);
