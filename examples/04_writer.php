@@ -99,8 +99,8 @@ try {
     $llm = new LLM('http://127.0.0.1:8080', timeoutSeconds: 600);
     $skill = new WriterSkill();
 
-    $planFile = 'inference_plan.md';
-    $articleFile = 'inference_article.md';
+    $planFile = 'article_plan.md';
+    $articleFile = 'article.md';
     $journalFile = 'writer_journal.md';
     $baseParams = [
         'plan_file' => $planFile,

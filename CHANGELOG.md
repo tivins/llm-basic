@@ -9,6 +9,10 @@
   for oversized sections) so that every `chatCompletion()` call stays well within
   `--ctx-size 16384`. Translated chunks are appended to the output file as they are produced,
   giving real-time progress and allowing partial recovery on interruption.
+- `stripPreamble()` helper in `05_translate_article.php` — detects and removes chain-of-thought
+  or annotation text that some models emit before the translated markdown despite the system
+  prompt forbidding it. Anchors on the first heading of the expected level; emits a STDERR
+  warning when a preamble is stripped.
 
 ## 0.19.4 — 2026-05-27
 

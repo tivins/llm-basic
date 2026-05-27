@@ -101,7 +101,7 @@ foreach ($chunks as $index => $chunk) {
     ])));
 
     $response   = $llm->chatCompletion($conv, $opts);
-    $translated = $response->firstChoice()->message->content;
+    $translated = stripPreamble($response->firstChoice()->message->content, $chunk);
 
     // Separate chunks with a blank line; the first chunk needs no leading newline
     $separator = $index > 0 ? "\n" : '';
@@ -118,6 +118,45 @@ echo "\nTranslation complete.\n$outputFile\n";
 exit(0);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Strip any chain-of-thought or annotation preamble that the model may emit
+ * before the actual translated text, despite the system prompt forbidding it.
+ *
+ * Heuristic: if the source chunk starts with a heading (#…), the translation
+ * must also start with a heading of the same level. Everything before the first
+ * such heading in the response is considered parasitic reasoning and is removed.
+ * A warning is printed to STDERR so the operator can detect noisy models.
+ *
+ * For chunks that do not start with a heading (paragraph-level fallback splits)
+ * no reliable anchor exists, so the response is returned unchanged.
+ */
+function stripPreamble(string $response, string $sourceChunk): string
+{
+    $firstSourceLine = explode("\n", ltrim($sourceChunk))[0];
+    if (!preg_match('/^(#{1,6}) /', $firstSourceLine, $m)) {
+        return $response;
+    }
+
+    $headingPattern = '/^' . preg_quote($m[1], '/') . ' /m';
+    if (!preg_match($headingPattern, $response, $match, PREG_OFFSET_CAPTURE)) {
+        return $response;
+    }
+
+    $offset = (int) $match[0][1];
+    if ($offset === 0) {
+        return $response;
+    }
+
+    $stripped = trim(substr($response, 0, $offset));
+    fwrite(STDERR, sprintf(
+        "  [warn] stripped %d-char preamble before \"%s\"\n",
+        strlen($stripped),
+        mb_strimwidth(substr($response, $offset, 60), 0, 60, '...'),
+    ));
+
+    return substr($response, $offset);
+}
 
 /**
  * Split a markdown document into chunks that each fit within the context window.
