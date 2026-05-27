@@ -72,7 +72,11 @@ class Invoke
     }
 
     /**
-     * @param array<string, mixed> $model
+     * @param array<string, mixed>      $model
+     * @param array<string, mixed>|null $vaeModel Optional VAE model ref (key/hash/name/base/type).
+     *                                            When provided for SDXL, a dedicated vae_loader node
+     *                                            is used instead of the checkpoint's built-in VAE.
+     *                                            Recommended: sdxl-vae-fp16-fix for better colour fidelity.
      *
      * @return array{batch_id: string, item_id: int}
      *
@@ -88,8 +92,20 @@ class Invoke
         float $cfgScale = 7.5,
         string $scheduler = 'euler',
         ?int $seed = null,
+        ?array $vaeModel = null,
     ): array {
         $isSdxl = ($model['base'] ?? '') === 'sdxl';
+
+        // Use SDXL-tuned defaults when the caller did not override them explicitly.
+        if ($isSdxl) {
+            if ($scheduler === 'euler') {
+                $scheduler = 'dpmpp_2m_sde_k';
+            }
+            if ($cfgScale === 7.5) {
+                $cfgScale = 5.0;
+            }
+        }
+
         $modelRef = [
             'key' => $model['key'],
             'hash' => $model['hash'],
@@ -114,7 +130,7 @@ class Invoke
                 'type' => $isSdxl ? 'sdxl_compel_prompt' : 'compel',
                 'id' => 'negative_prompt',
                 'prompt' => $negativePrompt,
-                ...($isSdxl ? ['style' => ''] : []),
+                ...($isSdxl ? ['style' => $negativePrompt] : []),
             ],
             'noise' => [
                 'type' => 'noise',
@@ -136,8 +152,18 @@ class Invoke
             'latents_to_image' => [
                 'type' => 'l2i',
                 'id' => 'latents_to_image',
+                'fp32' => true,
             ],
         ];
+
+        $useExternalVae = $isSdxl && $vaeModel !== null;
+        if ($useExternalVae) {
+            $nodes['vae_loader'] = [
+                'type' => 'vae_loader',
+                'id' => 'vae_loader',
+                'vae_model' => $vaeModel,
+            ];
+        }
 
         $edges = [
             $this->edge('model_loader', 'unet', 'denoise', 'unet'),
@@ -147,7 +173,9 @@ class Invoke
             $this->edge('negative_prompt', 'conditioning', 'denoise', 'negative_conditioning'),
             $this->edge('noise', 'noise', 'denoise', 'noise'),
             $this->edge('denoise', 'latents', 'latents_to_image', 'latents'),
-            $this->edge('model_loader', 'vae', 'latents_to_image', 'vae'),
+            $useExternalVae
+                ? $this->edge('vae_loader', 'vae', 'latents_to_image', 'vae')
+                : $this->edge('model_loader', 'vae', 'latents_to_image', 'vae'),
         ];
 
         if ($isSdxl) {
@@ -155,17 +183,21 @@ class Invoke
             $edges[] = $this->edge('model_loader', 'clip2', 'negative_prompt', 'clip2');
         }
 
-        $response = $this->request('POST', '/api/v1/queue/' . $this->queueId . '/enqueue_batch', [
+        $graph = [
+            'id' => 'text_to_image_graph',
+            'nodes' => $nodes,
+            'edges' => $edges,
+        ];
+        $batch = [
             'batch' => [
-                'graph' => [
-                    'id' => 'text_to_image_graph',
-                    'nodes' => $nodes,
-                    'edges' => $edges,
-                ],
+                'graph' => $graph,
                 'runs' => 1,
                 'data' => null,
             ],
-        ]);
+        ];
+
+        echo json_encode($batch, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        $response = $this->request('POST', '/api/v1/queue/' . $this->queueId . '/enqueue_batch', $batch);
 
         $batchId = $response['batch']['batch_id'] ?? null;
         if (!is_string($batchId) || $batchId === '') {
@@ -223,6 +255,8 @@ class Invoke
     }
 
     /**
+     * @param array<string, mixed>|null $vaeModel Optional VAE model ref forwarded to enqueueTextToImage().
+     *
      * @return array{batch_id: string, image: array<string, mixed>}
      *
      * @throws Exception
@@ -237,9 +271,10 @@ class Invoke
         float $cfgScale = 7.5,
         string $scheduler = 'euler',
         ?int $seed = null,
+        ?array $vaeModel = null,
     ): array {
         $model = $this->fetchModel($modelName);
-        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler, $seed);
+        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler, $seed, $vaeModel);
 
         return [
             'batch_id' => $enqueued['batch_id'],

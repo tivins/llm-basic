@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.6 — 2026-05-27
+
+### Changed
+
+- `Invoke::enqueueTextToImage()` / `Invoke::textToImage()` — add optional `$vaeModel` parameter: when provided for SDXL, a dedicated `vae_loader` node replaces the checkpoint's built-in VAE (recommended: `sdxl-vae-fp16-fix` for better colour fidelity).
+- `Invoke::enqueueTextToImage()` — `l2i` node now sets `fp32 = true` for more stable FP16 VAE decoding.
+- `Invoke::enqueueTextToImage()` — adaptive SDXL defaults: scheduler falls back to `dpmpp_2m_sde_k` and `cfg_scale` to `5.0` when the caller passes the SD 1.5 defaults (`euler` / `7.5`) and the model is SDXL. Explicit values are always respected.
+- `Invoke::enqueueTextToImage()` — SDXL negative prompt now propagates to the `style` field of `sdxl_compel_prompt` (was empty string), strengthening the second text-encoder negative conditioning.
+
 ## 0.19.5 — 2026-05-27
 
 ### Added

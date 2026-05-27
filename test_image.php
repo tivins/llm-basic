@@ -9,7 +9,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Invoke;
 
-$model_name = null;
+$model_name = 'cyberrealisticPony_v180Coreshift';
 $prompt = '(character concept art)++, stylized painterly digital painting of a medieval knight, (painterly, impasto. Dry brush.)++';
 $negative_prompt = 'blurry, photo, painting, color. messy, dirty. unfinished. frame, borders.';
 
@@ -17,7 +17,7 @@ $steps = 30;
 $width = 768;
 $height = 1024;
 $cfg_scale = 5;
-$scheduler = 'dpmpp_2m_k';//dpmpp_2m_sde_k
+$scheduler = 'dpmpp_2m_sde_k';//dpmpp_2m_sde_k
 $seed = 42;
 
 try {
@@ -28,8 +28,9 @@ try {
     var_dump($invoke->listSchedulers());
     exit;
     */
+    $vae = $invoke->listModels('vae', 'sdxl-vae-fp16-fix')[0] ?? null;
 
-    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler, $seed);
+    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler, $seed, $vae);
     $image = $result['image'];
 
     echo "batch_id: {$result['batch_id']}\n";
