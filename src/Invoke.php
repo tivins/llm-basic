@@ -77,6 +77,10 @@ class Invoke
      *                                            When provided for SDXL, a dedicated vae_loader node
      *                                            is used instead of the checkpoint's built-in VAE.
      *                                            Recommended: sdxl-vae-fp16-fix for better colour fidelity.
+     * @param list<array<string, mixed>> $loras   Resolved LoRA model refs (key/hash/name/base/type) each
+     *                                            augmented with a `weight` float key. Pass the output of
+     *                                            listModels('lora') entries with a `weight` key added, or
+     *                                            use textToImage() which resolves names automatically.
      *
      * @return array{batch_id: string, item_id: int}
      *
@@ -93,6 +97,7 @@ class Invoke
         string $scheduler = 'euler',
         ?int $seed = null,
         ?array $vaeModel = null,
+        array $loras = [],
     ): array {
         $isSdxl = ($model['base'] ?? '') === 'sdxl';
 
@@ -165,10 +170,51 @@ class Invoke
             ];
         }
 
-        $edges = [
-            $this->edge('model_loader', 'unet', 'denoise', 'unet'),
-            $this->edge('model_loader', 'clip', 'positive_prompt', 'clip'),
-            $this->edge('model_loader', 'clip', 'negative_prompt', 'clip'),
+        // LoRA pattern (mirrors Invoke UI):
+        //   lora_selector_N  ──lora──►  lora_collector  ──collection──►  lora_collection_loader
+        //   model_loader  ──unet/clip[/clip2]──►  lora_collection_loader
+        //   lora_collection_loader  ──unet/clip[/clip2]──►  denoise / prompts
+        // When $loras is empty we skip these nodes and wire model_loader directly.
+        $loraEdges = [];
+        if ($loras !== []) {
+            $nodes['lora_collector'] = ['type' => 'collect', 'id' => 'lora_collector'];
+            $nodes['lora_collection_loader'] = [
+                'type' => $isSdxl ? 'sdxl_lora_collection_loader' : 'lora_collection_loader',
+                'id'   => 'lora_collection_loader',
+            ];
+
+            foreach ($loras as $i => $lora) {
+                $selectorId = 'lora_selector_' . $i;
+                $nodes[$selectorId] = [
+                    'type'   => 'lora_selector',
+                    'id'     => $selectorId,
+                    'lora'   => [
+                        'key'  => $lora['key']  ?? '',
+                        'hash' => $lora['hash'] ?? '',
+                        'name' => $lora['name'],
+                        'base' => $lora['base'] ?? $model['base'],
+                        'type' => $lora['type'] ?? 'lora',
+                    ],
+                    'weight' => (float) ($lora['weight'] ?? 1.0),
+                ];
+                $loraEdges[] = $this->edge($selectorId, 'lora', 'lora_collector', 'item');
+            }
+
+            $loraEdges[] = $this->edge('lora_collector', 'collection', 'lora_collection_loader', 'loras');
+            $loraEdges[] = $this->edge('model_loader', 'unet', 'lora_collection_loader', 'unet');
+            $loraEdges[] = $this->edge('model_loader', 'clip', 'lora_collection_loader', 'clip');
+            if ($isSdxl) {
+                $loraEdges[] = $this->edge('model_loader', 'clip2', 'lora_collection_loader', 'clip2');
+            }
+        }
+
+        // Source node for unet/clip connections to denoise and prompt nodes.
+        $unetClipSource = $loras !== [] ? 'lora_collection_loader' : 'model_loader';
+
+        $edges = array_merge($loraEdges, [
+            $this->edge($unetClipSource, 'unet', 'denoise', 'unet'),
+            $this->edge($unetClipSource, 'clip', 'positive_prompt', 'clip'),
+            $this->edge($unetClipSource, 'clip', 'negative_prompt', 'clip'),
             $this->edge('positive_prompt', 'conditioning', 'denoise', 'positive_conditioning'),
             $this->edge('negative_prompt', 'conditioning', 'denoise', 'negative_conditioning'),
             $this->edge('noise', 'noise', 'denoise', 'noise'),
@@ -176,11 +222,11 @@ class Invoke
             $useExternalVae
                 ? $this->edge('vae_loader', 'vae', 'latents_to_image', 'vae')
                 : $this->edge('model_loader', 'vae', 'latents_to_image', 'vae'),
-        ];
+        ]);
 
         if ($isSdxl) {
-            $edges[] = $this->edge('model_loader', 'clip2', 'positive_prompt', 'clip2');
-            $edges[] = $this->edge('model_loader', 'clip2', 'negative_prompt', 'clip2');
+            $edges[] = $this->edge($unetClipSource, 'clip2', 'positive_prompt', 'clip2');
+            $edges[] = $this->edge($unetClipSource, 'clip2', 'negative_prompt', 'clip2');
         }
 
         $graph = [
@@ -196,7 +242,7 @@ class Invoke
             ],
         ];
 
-        echo json_encode($batch, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        echo json_encode($batch, JSON_UNESCAPED_UNICODE) . PHP_EOL . PHP_EOL;
         $response = $this->request('POST', '/api/v1/queue/' . $this->queueId . '/enqueue_batch', $batch);
 
         $batchId = $response['batch']['batch_id'] ?? null;
@@ -233,7 +279,8 @@ class Invoke
             );
 
             if (($status['failed'] ?? 0) > 0) {
-                throw new Exception('Invoke batch failed: ' . json_encode($status, JSON_UNESCAPED_UNICODE));
+                $detail = $this->fetchQueueItemError($itemId);
+                throw new Exception('Invoke batch failed: ' . $detail);
             }
 
             $completed = (int) ($status['completed'] ?? 0);
@@ -255,7 +302,9 @@ class Invoke
     }
 
     /**
-     * @param array<string, mixed>|null $vaeModel Optional VAE model ref forwarded to enqueueTextToImage().
+     * @param array<string, mixed>|null  $vaeModel Optional VAE model ref forwarded to enqueueTextToImage().
+     * @param list<array{name: string, weight: float}> $loras LoRA descriptors with `name` and `weight`.
+     *                                                         Each name is resolved via listModels('lora').
      *
      * @return array{batch_id: string, image: array<string, mixed>}
      *
@@ -272,9 +321,21 @@ class Invoke
         string $scheduler = 'euler',
         ?int $seed = null,
         ?array $vaeModel = null,
+        array $loras = [],
     ): array {
         $model = $this->fetchModel($modelName);
-        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler, $seed, $vaeModel);
+
+        $resolvedLoras = [];
+        foreach ($loras as $lora) {
+            $name = $lora['name'] ?? '';
+            $matches = $this->listModels('lora', $name);
+            if ($matches === []) {
+                throw new Exception("LoRA model \"{$name}\" not found in Invoke.");
+            }
+            $resolvedLoras[] = array_merge($matches[0], ['weight' => (float) ($lora['weight'] ?? 1.0)]);
+        }
+
+        $enqueued = $this->enqueueTextToImage($model, $prompt, $negativePrompt, $steps, $width, $height, $cfgScale, $scheduler, $seed, $vaeModel, $resolvedLoras);
 
         return [
             'batch_id' => $enqueued['batch_id'],
@@ -348,6 +409,36 @@ class Invoke
         }
 
         return $decoded;
+    }
+
+    /**
+     * Fetch the queue item and extract the most useful error detail available.
+     * Falls back to the raw JSON when no structured error is present.
+     */
+    private function fetchQueueItemError(int $itemId): string
+    {
+        try {
+            $item = $this->request('GET', '/api/v1/queue/' . $this->queueId . '/i/' . $itemId);
+        } catch (Exception) {
+            return "item_id={$itemId} (could not fetch queue item)";
+        }
+
+        // Invoke stores execution errors under session.execution_graph.nodes.<id>.error
+        $errors = [];
+        $nodes = $item['session']['execution_graph']['nodes'] ?? [];
+        foreach ($nodes as $nodeId => $node) {
+            if (isset($node['error'])) {
+                $errors[] = "[{$nodeId}] " . (is_string($node['error']) ? $node['error'] : json_encode($node['error'], JSON_UNESCAPED_UNICODE));
+            }
+        }
+        if ($errors !== []) {
+            return implode(' | ', $errors);
+        }
+
+        // Fallback: return the trimmed raw item JSON (capped to avoid wall of text)
+        $raw = json_encode($item, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+
+        return strlen($raw) > 2000 ? substr($raw, 0, 2000) . '…' : $raw;
     }
 
     /**

@@ -9,9 +9,12 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Invoke;
 
-$model_name = 'cyberrealisticPony_v180Coreshift';
+$model_name = getenv('LLMBASIC_MODEL') ?: null;
 $prompt = '(character concept art)++, stylized painterly digital painting of a medieval knight, (painterly, impasto. Dry brush.)++';
 $negative_prompt = 'blurry, photo, painting, color. messy, dirty. unfinished. frame, borders.';
+$loras = [
+    ['name' => 'HandFineTuning_XL', 'weight' => 0.75],
+];
 
 $steps = 30;
 $width = 768;
@@ -23,14 +26,13 @@ $seed = 42;
 try {
     $invoke = new Invoke();
 
-    /*
-    var_dump($invoke->listModels());
-    var_dump($invoke->listSchedulers());
-    exit;
-    */
+    # var_dump($invoke->listModels('lora'));exit;
+    # var_dump($invoke->listModels('main'));exit;
+    # var_dump($invoke->listSchedulers());exit;
+    
     $vae = $invoke->listModels('vae', 'sdxl-vae-fp16-fix')[0] ?? null;
 
-    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler, $seed, $vae);
+    $result = $invoke->textToImage($prompt, $negative_prompt, $steps, $width, $height, $model_name, $cfg_scale, $scheduler, $seed, $vae, $loras);
     $image = $result['image'];
 
     echo "batch_id: {$result['batch_id']}\n";

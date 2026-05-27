@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.7 — 2026-05-27
+
+### Added
+
+- `Invoke::enqueueTextToImage()` — new optional `$loras` parameter: accepts a list of resolved LoRA model refs (from `listModels('lora')`) each augmented with a `weight` float key. When provided, builds a `lora_selector` → `collect` → `lora_collection_loader` (`sdxl_lora_collection_loader` for SDXL) subgraph that mirrors the Invoke UI workflow, replacing the model_loader as the unet/clip/clip2 source.
+- `Invoke::textToImage()` — new optional `$loras` parameter: accepts `[['name' => string, 'weight' => float], ...]`; each name is resolved via `listModels('lora')` before being passed to `enqueueTextToImage()`.
+- `Invoke::fetchQueueItemError()` — private helper that fetches the failed queue item and extracts structured node-level error messages from `session.execution_graph.nodes`; used by `waitForBatchImage()` to emit actionable error details instead of the opaque batch status blob.
+
 ## 0.19.6 — 2026-05-27
 
 ### Changed
