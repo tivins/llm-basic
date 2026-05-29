@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.9 — 2026-05-29
+
+### Added
+
+- `GetDateTimeTool` — `get_date_time` tool: host clock as ISO-8601 datetime with optional IANA `timezone` (`date`, `time`, `day_of_week`, `unix_timestamp`, `utc_offset`).
+- `tests/workspace_smoke.php` — smoke tests for `GetDateTimeTool`.
+- `test.php` registers `GetDateTimeTool`.
+
 ## 0.19.8 — 2026-05-29
 
 ### Added

@@ -26,6 +26,7 @@ use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Tools\FetchWebPageTool;
 use Tivins\LlmBasic\Tools\WebSearchTool;
 use Tivins\LlmBasic\Tools\LangSearchTool;
+use Tivins\LlmBasic\Tools\GetDateTimeTool;
 use Tivins\LlmBasic\Tools\OpenMeteoTool;
 use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
@@ -111,6 +112,7 @@ try {
     $langSearchKey = getenv('LANGSEARCH_API_KEY');
 
     $tools = new ToolRegistry(
+        new GetDateTimeTool(),
         // getCityPopulation(),
         // getCityWeather(),
         new ReadFileTool($workspace),

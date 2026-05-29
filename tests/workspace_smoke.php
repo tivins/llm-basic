@@ -13,6 +13,7 @@ use Tivins\LlmBasic\Tools\ApplyDiffTool;
 use Tivins\LlmBasic\Tools\WriteFileTool;
 use Tivins\LlmBasic\Tools\AppendFileTool;
 use Tivins\LlmBasic\Tools\LintFileTool;
+use Tivins\LlmBasic\Tools\GetDateTimeTool;
 use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
 use Tivins\LlmBasic\WorkspaceException;
@@ -633,6 +634,28 @@ assertTrue(
     && str_contains($continueQuery, 'previous_step_reported: "Wrote section 1. Next: Body."'),
     'WriterSkill continue query includes progress and previous summary hints',
 );
+
+echo "\n=== GetDateTimeTool ===\n";
+
+$dateTimeTool = new GetDateTimeTool();
+$dateTimeDefault = json_decode(($dateTimeTool->handler)('{}'), true);
+assertTrue(is_array($dateTimeDefault), 'get_date_time default: valid JSON');
+assertTrue(
+    isset($dateTimeDefault['datetime'], $dateTimeDefault['timezone'], $dateTimeDefault['unix_timestamp'])
+    && !isset($dateTimeDefault['error']),
+    'get_date_time default: datetime keys present',
+);
+assertTrue(
+    preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', (string) ($dateTimeDefault['datetime'] ?? '')) === 1,
+    'get_date_time default: datetime is ISO-8601 ATOM',
+);
+
+$dateTimeUtc = json_decode(($dateTimeTool->handler)(json_encode(['timezone' => 'UTC'])), true);
+assertTrue(($dateTimeUtc['timezone'] ?? '') === 'UTC', 'get_date_time UTC: timezone field');
+assertTrue(($dateTimeUtc['utc_offset'] ?? '') === '+00:00', 'get_date_time UTC: utc_offset +00:00');
+
+$dateTimeBadTz = json_decode(($dateTimeTool->handler)(json_encode(['timezone' => 'Not/A/Zone'])), true);
+assertTrue(isset($dateTimeBadTz['error']), 'get_date_time invalid timezone: error key present');
 
 // cleanup tests/_tmp/
 foreach ([$tmpFile, $patchFile, $validPhp, $invalidPhp, $rangeFile, $emptyRangeFile, $longRangeFile, $grepSample, $diffFile, $writerPlanFile, $writerArticleFile, $writerPlanFile2, $writerArticleFile2, $writerPlanFile3, $writerArticleFile3] as $relativePath) {
