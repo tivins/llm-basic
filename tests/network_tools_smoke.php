@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Network smoke tests for FetchWebPageTool, WebSearchTool, and LangSearchTool.
+ * Network smoke tests for FetchWebPageTool, WebSearchTool, LangSearchTool, and OpenMeteoTool.
  *
  * Run:   php tests/network_tools_smoke.php
  *
@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use Tivins\LlmBasic\Tools\FetchWebPageTool;
 use Tivins\LlmBasic\Tools\LangSearchTool;
+use Tivins\LlmBasic\Tools\OpenMeteoTool;
 use Tivins\LlmBasic\Tools\WebSearchTool;
 
 $failures = 0;
@@ -101,6 +102,34 @@ assertTrue(count($searchFew['results'] ?? []) <= 3, 'web_search max_results=3: a
 // Error: empty query
 $searchErr = json_decode(($search->handler)(json_encode(['query' => ''])), true);
 assertTrue(isset($searchErr['error']), 'web_search empty query: error key present');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OpenMeteoTool
+// ─────────────────────────────────────────────────────────────────────────────
+echo "\n=== OpenMeteoTool ===\n";
+
+$meteo = new OpenMeteoTool();
+
+$meteoResult = json_decode(($meteo->handler)(json_encode([
+    'latitude' => 52.52,
+    'longitude' => 13.41,
+    'daily' => 'sunrise,sunset',
+    'models' => 'meteofrance_seamless',
+    'current' => 'is_day,temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m',
+    'timezone' => 'Europe/Berlin',
+    'forecast_days' => 1,
+])), true);
+assertTrue(is_array($meteoResult), 'open_meteo_forecast Berlin: valid JSON');
+assertTrue(($meteoResult['provider'] ?? '') === 'open-meteo', 'open_meteo_forecast: provider = open-meteo');
+assertTrue(($meteoResult['http_status'] ?? 0) === 200, 'open_meteo_forecast: HTTP 200');
+assertTrue(isset($meteoResult['current']['temperature_2m']), 'open_meteo_forecast: current temperature present');
+assertTrue(is_array($meteoResult['daily']['sunrise'] ?? null), 'open_meteo_forecast: daily sunrise array');
+
+$meteoErrLat = json_decode(($meteo->handler)(json_encode(['latitude' => 999, 'longitude' => 0])), true);
+assertTrue(isset($meteoErrLat['error']), 'open_meteo_forecast invalid latitude: error key present');
+
+$meteoErrMissing = json_decode(($meteo->handler)(json_encode(['longitude' => 13.41])), true);
+assertTrue(isset($meteoErrMissing['error']), 'open_meteo_forecast missing latitude: error key present');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LangSearchTool (only if API key provided)

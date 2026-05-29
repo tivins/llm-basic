@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.8 — 2026-05-29
+
+### Added
+
+- `OpenMeteoTool` — `open_meteo_forecast` tool: free weather forecast via [Open-Meteo](https://open-meteo.com/en/docs) (`latitude`, `longitude`, optional `current` / `hourly` / `daily` variable lists, `timezone`, `forecast_days`, `past_days`, `models`).
+- `tests/network_tools_smoke.php` — smoke tests for `OpenMeteoTool` (Berlin example, validation errors).
+- `test.php` registers `OpenMeteoTool`.
+
 ## 0.19.7 — 2026-05-27
 
 ### Added

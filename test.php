@@ -26,9 +26,10 @@ use Tivins\LlmBasic\Tools\LintFileTool;
 use Tivins\LlmBasic\Tools\FetchWebPageTool;
 use Tivins\LlmBasic\Tools\WebSearchTool;
 use Tivins\LlmBasic\Tools\LangSearchTool;
+use Tivins\LlmBasic\Tools\OpenMeteoTool;
 use Tivins\LlmBasic\Tools\GrepTool;
 use Tivins\LlmBasic\Workspace;
-
+/*
 function getCityPopulation(): Tool
 {
     return new Tool(
@@ -102,7 +103,7 @@ function getCityWeather(): Tool
         }
     );
 }
-
+*/
 try {
     date_default_timezone_set('Europe/Paris');
     $logger = new Logger(__dir__ . '/var/logs/chat-' . date('Y-m-d-H-i-s-Z') . '.json');
@@ -110,8 +111,8 @@ try {
     $langSearchKey = getenv('LANGSEARCH_API_KEY');
 
     $tools = new ToolRegistry(
-        getCityPopulation(),
-        getCityWeather(),
+        // getCityPopulation(),
+        // getCityWeather(),
         new ReadFileTool($workspace),
         new ReadFileRangeTool($workspace),
         new ListDirTool($workspace),
@@ -123,6 +124,7 @@ try {
         new LintFileTool($workspace),
         new FetchWebPageTool(),
         new WebSearchTool(),
+        new OpenMeteoTool(),
         ...($langSearchKey !== false && $langSearchKey !== ''
             ? [new LangSearchTool($langSearchKey)]
             : []),
