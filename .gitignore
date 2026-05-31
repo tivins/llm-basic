@@ -8,3 +8,5 @@ image.png
 tmp/
 var/
 tests/_tmp/
+*.wav
+examples/fixtures/
