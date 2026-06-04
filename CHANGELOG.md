@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.21.0 — 2026-06-04
+
+### Added
+
+- `MessageStoreInterface` — abstraction for conversation message/memory persistence used by compaction.
+- `MemoryCompactor` — archives older messages when a character threshold is exceeded, merges a summary into long-term memory via `LLM::chatCompletion()`, and keeps a configurable recent window (`CONTEXT_CHAR_THRESHOLD`, `KEEP_RECENT_MESSAGES`, `MIN_KEEP_MESSAGES` env vars in `fromEnv()`).
+- Injectable `$summarySystemPrompt` on `MemoryCompactor` (generic default; host apps can pass bot-specific instructions).
+- `tests/memory_compactor_test.php` — compaction planning smoke test with an in-memory store.
+
 ## 0.19.9 — 2026-05-29
 
 ### Added
