@@ -10,3 +10,7 @@ var/
 tests/_tmp/
 *.wav
 examples/fixtures/
+/coding_art.md
+/context.md
+/new_release.php
+/persona.md
