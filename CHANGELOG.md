@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.22.0 — 2026-06-06
+
+### Added
+
+- `FileMessageStore` — reference `MessageStoreInterface` implementation (`messages.json`, `memory.md`, `archives/`, `context.json`) with optional per-conversation subdirectory and stable message `id`s in JSON.
+- `ConversationBuilder` — builds a `Conversation` from a store; injects `loadMemory()` into the system message under `## Long-term memory`.
+- `ConversationalSession` — orchestrates a user turn (build context → `Agent::runTurn()` → persist user/assistant → `MemoryCompactor::compactIfNeeded()`); exposes `contextProgress()` for UI.
+- `examples/06_profile_conversation.php` — stdin loop for profile-discovery chat with file-backed memory.
+- `tests/file_message_store_test.php`, `tests/conversation_builder_test.php`, `tests/conversational_session_test.php` — smoke tests without live LLM compaction.
+
+### Changed
+
+- `MessageStoreInterface` — watermark API: `loadAllMessages()`, `loadContextMessages()`, `setContextFromMessageId()`, `getContextFromMessageId()`, `recordCompactionEvent()`. `loadMessages()`, `saveMessages()`, `archiveMessages()` kept but `@deprecated`.
+- `MemoryCompactor::compactIfNeeded()` — advances the context watermark instead of calling `saveMessages()` / `archiveMessages()`; returns `context_from_message_id`. Requires stable `id` on kept messages. Order: summarize → `saveMemory` → `recordCompactionEvent` → `setContextFromMessageId`.
+- `ConversationBuilder` / `ConversationalSession` — use `loadContextMessages()` for LLM context and `loadAllMessages()` for persistence.
+- `tests/memory_compactor_test.php` — verifies compaction does not call `saveMessages` and advances watermark.
+
 ## 0.21.0 — 2026-06-04
 
 ### Added

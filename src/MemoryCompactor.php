@@ -31,14 +31,14 @@ final class MemoryCompactor
         );
     }
 
-    /** @param list<array{role: string, content: string, meta?: array<string, mixed>}> $messages */
+    /** @param list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}> $messages */
     public function shouldCompact(array $messages): bool
     {
         return $this->planCompaction($messages) !== null;
     }
 
     /**
-     * @param list<array{role: string, content: string, meta?: array<string, mixed>}> $messages
+     * @param list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}> $messages
      * @return array{
      *   chars: int,
      *   threshold: int,
@@ -71,8 +71,14 @@ final class MemoryCompactor
     }
 
     /**
-     * @param list<array{role: string, content: string, meta?: array<string, mixed>}> $messages
-     * @return array{compacted: bool, archive_id?: string, kept: int, archived: int}
+     * @param list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}> $messages
+     * @return array{
+     *   compacted: bool,
+     *   context_from_message_id?: int,
+     *   archive_id?: string,
+     *   kept: int,
+     *   archived: int
+     * }
      */
     public function compactIfNeeded(array $messages, LLM $llm, ChatCompletionOptions $options): array
     {
@@ -84,14 +90,21 @@ final class MemoryCompactor
         $toArchive = $plan['toArchive'];
         $toKeep = $plan['toKeep'];
 
+        $firstKept = $toKeep[0] ?? null;
+        if ($firstKept === null || !isset($firstKept['id'])) {
+            throw new \RuntimeException('Compaction requires stable message ids on kept messages');
+        }
+        $firstKeptId = (int) $firstKept['id'];
+
         $updatedMemory = $this->summarizeIntoMemory($toArchive, $llm, $options);
         $this->store->saveMemory($updatedMemory);
 
-        $archive = $this->store->archiveMessages($toArchive);
-        $this->store->saveMessages($toKeep);
+        $archive = $this->store->recordCompactionEvent($toArchive);
+        $this->store->setContextFromMessageId($firstKeptId);
 
         return [
             'compacted' => true,
+            'context_from_message_id' => $firstKeptId,
             'archive_id' => $archive['id'],
             'kept' => count($toKeep),
             'archived' => count($toArchive),
@@ -99,10 +112,10 @@ final class MemoryCompactor
     }
 
     /**
-     * @param list<array{role: string, content: string, meta?: array<string, mixed>}> $messages
+     * @param list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}> $messages
      * @return array{
-     *   toArchive: list<array{role: string, content: string, meta?: array<string, mixed>}>,
-     *   toKeep: list<array{role: string, content: string, meta?: array<string, mixed>}>,
+     *   toArchive: list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}>,
+     *   toKeep: list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}>,
      *   keep: int
      * }|null
      */
@@ -127,7 +140,7 @@ final class MemoryCompactor
     }
 
     /**
-     * @param list<array{role: string, content: string, meta?: array<string, mixed>}> $messages
+     * @param list<array{id?: int, role: string, content: string, meta?: array<string, mixed>}> $messages
      */
     private function resolveKeepCount(array $messages): int
     {
